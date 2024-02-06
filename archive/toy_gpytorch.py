@@ -77,7 +77,6 @@ model = MultitaskGPModel(train_x, train_y, likelihood)
 model.train()
 likelihood.train()
 
-
 # Use the adam optimizer
 optimizer = torch.optim.Adam([
     {'params': model.parameters()},  # Includes GaussianLikelihood parameters

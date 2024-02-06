@@ -11,7 +11,6 @@ class OptiCasadi:
         self.init_mpc_params()
         self.init_decision_variables()
         
-        
     def init_mpc_params(self)-> None:
         """initialize the mpc parameters"""
         self.N = self.mpc_params['N']

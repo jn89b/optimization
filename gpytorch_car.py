@@ -146,7 +146,7 @@ constraint_params = {
     "upper_input_bounds": uub,
 }
 
-num_samples = 100
+num_samples = 500
 
 car = ToyCar()
 car.set_state_space()
@@ -173,7 +173,7 @@ optimizer = torch.optim.Adam([
 
 mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
-training_iter = 10
+training_iter = 25
 mse_list = []
 for i in range(training_iter):
     optimizer.zero_grad()
@@ -217,8 +217,7 @@ u_traj = solution.value(mpc_controller.U)\
 
 #### Begin Simulation of the car with the GP model ####
 n_steps = 50
-solution_list = []
-time_history  = []
+
 t_init = 0
 
 dist_from_goal = np.linalg.norm(init_states[:-1] - final_states[:-1])
@@ -226,7 +225,17 @@ print("distance from goal is ", dist_from_goal)
 
 tolerance = 0.1
 init_vector = init_states
-print_every = 10
+print_every = 5
+
+post_results = {
+    'solution_list': [],
+    'time_history': [],
+    'state_history': [],
+    'control_history': [],
+    'gp_predictions': [],
+    'gp_lower': [],
+    'gp_upper': []
+}
 
 for i in range(n_steps):
         
@@ -240,19 +249,96 @@ for i in range(n_steps):
     if i % print_every == 0:
         print("init vector is ", init_vector)
 
-    solution_list.append((x_traj, u_traj))
+    post_results['solution_list'].append((x_traj, u_traj))
     mpc_controller.opti.set_value(mpc_controller.x0, init_vector)
 
     #get the next control input
     mpc_controller.opti.set_value(mpc_controller.x0, init_vector)
-    time_history.append(t_init)
+    post_results['time_history'].append(t_init)
+    
+    # Predict the next state with GP model
+    #combine the combine the state and control inputs
+    u_init = np.array(u_traj[:,0])
+    #shape u_init as a row vector
+    u_init = u_init.reshape(1, -1)
+    Z_test = np.hstack((np.transpose(init_vector), u_init))
+    Z_test = torch.tensor(Z_test).float().to(device)
+    predictions = likelihood(model(Z_test))
+    mean = predictions.mean
+    lower, upper = predictions.confidence_region()
+    mean = mean.cpu().detach().numpy()
+    lower = lower.cpu().detach().numpy()
+    upper = upper.cpu().detach().numpy()
+    print("mean is ", mean)
+    print("lower is ", lower)
+    print("upper is ", upper)
     
     dist_from_goal = np.linalg.norm(init_vector - final_states[:-1])
+    
+    post_results['gp_predictions'].append(mean)
+    post_results['gp_lower'].append(lower)
+    post_results['gp_upper'].append(upper)
+    post_results['state_history'].append(init_vector)
+    post_results['control_history'].append(u_init)
+    
     if dist_from_goal < tolerance:
         print("Goal reached")
-        break
+        break 
 
 print("final state is ", init_vector)
 print("final time is ", t_init)
 
-#plt.show()
+#%% Post Processing 
+x_history = []
+y_history = []
+psi_history = []
+
+gp_predictions = post_results['gp_predictions']
+gp_predictions = np.array(gp_predictions)
+gp_predictions = gp_predictions.reshape(-1, car.n_states)
+
+gp_lower = post_results['gp_lower']
+gp_lower = np.array(gp_lower)
+gp_lower = gp_lower.reshape(-1, car.n_states)
+
+gp_upper = post_results['gp_upper']
+gp_upper = np.array(gp_upper)
+gp_upper = gp_upper.reshape(-1, car.n_states)
+
+for state in post_results['state_history']:
+    x_history.append(state[0])
+    y_history.append(state[1])
+    psi_history.append(state[2])
+    
+#%% Plot stuff
+fig, ax = plt.subplots(1, 1, figsize=(14, 10))
+ax.scatter(x_history, y_history, label='Nominal')
+ax.plot(gp_predictions[:,0], gp_predictions[:,1], 
+        label='GP', linestyle='--', color='r')
+#ax.fill_between(np.arange(len(x_history)), gp_lower[:,0], gp_upper[:,0], alpha=0.5)
+ax.set_title('X vs Y')
+ax.legend()
+
+
+fig,ax = plt.subplots(3, 1, figsize=(14, 10))
+ax[0].scatter(post_results['time_history'], x_history, label='Nominal')
+ax[0].plot(post_results['time_history'], gp_predictions[:,0], label='GP', linestyle='--', color='r')
+ax[0].fill_between(post_results['time_history'], gp_lower[:,0], gp_upper[:,0], alpha=0.5)
+
+ax[1].scatter(post_results['time_history'], y_history, label='Nominal')
+ax[1].plot(post_results['time_history'], gp_predictions[:,1], label='GP', linestyle='--', color='r')
+ax[1].fill_between(post_results['time_history'], gp_lower[:,1], gp_upper[:,1], alpha=0.5)
+
+ax[2].scatter(post_results['time_history'], psi_history, label='Nominal')
+ax[2].plot(post_results['time_history'], gp_predictions[:,2], label='GP', linestyle='--', color='r')
+ax[2].fill_between(post_results['time_history'], gp_lower[:,2], gp_upper[:,2], alpha=0.5)
+
+ax[0].set_title('X State')
+ax[1].set_title('Y State')
+ax[2].set_title('Psi State')
+
+for a in ax:
+    a.legend()
+    a.grid(True)
+    
+plt.show()
