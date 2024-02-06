@@ -1,0 +1,2 @@
+- https://github.com/helgeanl/GP-MPC/blob/master/gp_mpc/gp_class.py
+- https://arxiv.org/abs/2102.05773
