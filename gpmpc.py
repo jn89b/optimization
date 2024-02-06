@@ -190,6 +190,8 @@ NUM_TASKS = Y.shape[1]
 class MultitaskGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood):
         super(MultitaskGPModel, self).__init__(train_x, train_y, likelihood)
+        
+        #num task is the number of outputs from your model (n_x)
         self.mean_module = gpytorch.means.MultitaskMean(
             gpytorch.means.ConstantMean(), num_tasks=NUM_TASKS
         )
@@ -243,7 +245,6 @@ for i in range(training_iter):
 # Set into eval mode
 model.eval()
 likelihood.eval()
-
 
 with torch.no_grad(), gpytorch.settings.fast_computations(log_prob=False, covar_root_decomposition=False):
     predictions = likelihood(model(Z_test))

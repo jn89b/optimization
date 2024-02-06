@@ -12,3 +12,6 @@
 # Thoughts
 - Checkout using ensemble GP:
     - Stack a bunch of GPs to make a metamodel
+
+
+## 
