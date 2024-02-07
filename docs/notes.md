@@ -25,13 +25,12 @@ You basically can have single or multiple GPs, you're using ensemble machine lea
 ```python
         # Build full model. Will have 13 variables. self.dyn_x contains the symbolic variable that
         # should be used to evaluate the dynamics function. It corresponds to self.x if there are no GP's, or
-        # self.x_with_gp otherwise
+        # self.x_with_gp otherwiseb
         acados_models, nominal_with_gp = self.acados_setup_model(
             self.quad_xdot_nominal(x=self.x, u=self.u)['x_dot'], model_name)
 
 dynamics_equations[i] = nominal + cs.mtimes(self.B_x, gp_means)
 ```
-
 
 ## Updating the kernels
 ```python

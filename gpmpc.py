@@ -172,8 +172,11 @@ num_tests   = 100
 
 car = ToyCar()
 car.set_state_space()
+## We want to train the gp to find the residuals of our system
 Z, Y = car.generate_training_data(num_samples, dt, constraint_params)
+
 Z_test, Y_test = car.generate_training_data(num_tests, dt, constraint_params)
+
 
 #convert Z and Y to torch tensors
 Z = torch.tensor(Z).float()

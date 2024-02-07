@@ -78,9 +78,9 @@ class ToyCar():
             return next_step
         else:
             return x + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
-        
+        # 
     def generate_training_data(self, N:int, dt:float, constraint_params:dict, 
-                               noise:bool=True):
+                               noise:bool=True, noise_val:float=1e-2, noise_deg:float=0.5):
         """ Generate training data using latin hypercube design
         # Arguments:
             N:   Number of data points to be generated
@@ -97,7 +97,6 @@ class ToyCar():
         # Make sure boundary vectors are numpy arrays
         N = int(N)
         
-        noise_val = 1e-3
         R = np.eye(self.n_states) * noise_val
         
         #check if the constraint parameters are a numpy array
@@ -132,18 +131,33 @@ class ToyCar():
         num_parameters = 0
         parameters = pyDOE.lhs(num_parameters, samples=N)
         
+        Y_no_noise = np.zeros((N, self.n_states))
+        
+        unexplained_x = 0.0 #* np.random.uniform(-1, 1, (N, self.n_states))
+        unexplained_y = 0.0 #* np.random.uniform(-1, 1, (N, self.n_states))
+        
+        
         for i in range(N):
+            unexplained_psi = np.random.uniform(np.deg2rad(5), np.deg2rad(10))
             if self.n_controls > 0:
+                Y_no_noise[i,:] = self.rk45(X[i], U[i], dt)
                 Y[i,:] = self.rk45(X[i], U[i], dt)
             else:
+                Y_no_noise[i,:] = self.rk45(X[i], np.array([]), dt)
                 Y[i,:] = self.rk45(X[i], np.array([]), dt)
-                
+            
             if noise:
-                Y[i,:] += np.random.multivariate_normal(np.zeros(self.n_states), R)
+                #add white noise to the state outputs
+                Y[i,0] += np.random.uniform(-noise_val, noise_val) + unexplained_x
+                Y[i,1] += np.random.uniform(-noise_val, noise_val) + unexplained_y
+                noise_rad = np.random.uniform(-np.deg2rad(noise_deg), np.deg2rad(noise_deg)) + unexplained_psi
+                Y[i,2] += noise_rad
+                #Y[i,:] += np.random.multivariate_uniform(np.zeros(self.n_states), R)
+            
             
         #concatenate the state and control inputs
         if self.n_controls > 0:
             Z = np.hstack((X, U))
         else:
             Z = X
-        return Z, Y            
+        return Z, Y, Y_no_noise            

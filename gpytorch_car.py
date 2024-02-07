@@ -17,6 +17,8 @@ import numpy as np
 import torch
 import gpytorch
 import casadi as ca # this will be done eventually
+import pickle as pkl
+
 
 from matplotlib import pyplot as plt
 from models.toycar import ToyCar
@@ -131,7 +133,7 @@ def shift_time_step(step_horizon, t_init, state_init, u,f):
 ##### Define the Car Model #####
 
 # System parameters for car
-dt = 0.1
+dt = 0.05
 
 # Lower and upper bounds for states and inputs
 xlb = np.array([-10, -10, -np.pi])
@@ -146,16 +148,26 @@ constraint_params = {
     "upper_input_bounds": uub,
 }
 
-num_samples = 500
-
+num_samples = 100
+LOAD_DATA = True
+SAVE = True
 car = ToyCar()
 car.set_state_space()
 
 ##### Generate Trainig Data and build the GP model #####
+if LOAD_DATA:
+    Z_train = pkl.load(open("Z_train.pkl", "rb"))
+    Y_train = pkl.load(open("Y_train.pkl", "rb"))
+    Z_train = torch.tensor(Z_train).float()
+    Y_train = torch.tensor(Y_train).float()
+else:
+    Z_train, Y_noise ,Y_nominal = car.generate_training_data(num_samples, dt, constraint_params, 
+                                                            noise_val=0.5, noise_deg=0.5)
+    Z_train = torch.tensor(Z_train).float()
+    Y_train = Y_noise - Y_nominal
+    Y_train = torch.tensor(Y_train).float()
 
-Z_train, Y_train = car.generate_training_data(num_samples, dt, constraint_params)
-Z_train = torch.tensor(Z_train).float()
-Y_train = torch.tensor(Y_train).float()
+
 likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=car.n_states)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device is ", device)
@@ -173,7 +185,7 @@ optimizer = torch.optim.Adam([
 
 mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
-training_iter = 25
+training_iter = 100
 mse_list = []
 for i in range(training_iter):
     optimizer.zero_grad()
@@ -201,7 +213,7 @@ mpc_params = {
 }
 
 init_states = np.array([0, 0, 0])
-final_states = np.array([4, 4, 0])
+final_states = np.array([0, 5, 0])
 
 mpc_controller = GPMPController(mpc_params,constraint_params, car)
 mpc_controller.set_init_final_states(init_states, final_states)
@@ -216,7 +228,7 @@ u_traj = solution.value(mpc_controller.U)\
 
 
 #### Begin Simulation of the car with the GP model ####
-n_steps = 50
+n_steps = 100
 
 t_init = 0
 
@@ -234,17 +246,32 @@ post_results = {
     'control_history': [],
     'gp_predictions': [],
     'gp_lower': [],
-    'gp_upper': []
+    'gp_upper': [],
+    'true_state': [],
+    'error_prediction': []
 }
 
+z_test_array = []
+
+noise_val = 1e-4
 for i in range(n_steps):
-        
+    unexplained_psi_bias = np.random.uniform(np.deg2rad(6), np.deg2rad(8))
     solution = mpc_controller.solve()
     x_traj = solution.value(mpc_controller.X)
     u_traj = solution.value(mpc_controller.U)
     
     #reinit here 
     t_init, init_vector = shift_time_step(dt, t_init, init_vector, u_traj, car.function)
+      
+    #add random noise to the state
+    #make a copy of the true state
+    true_state     = np.copy(init_vector)
+    true_state[0] += np.random.uniform(-noise_val, noise_val)
+    true_state[1] += np.random.uniform(-noise_val, noise_val)
+    #add noise to the psi state
+    noise_rad = np.random.uniform(-np.deg2rad(1), np.deg2rad(1))
+    true_state[2] += noise_rad + unexplained_psi_bias
+    # true_state += np.random.normal(-noise_val, noise_val, init_vector.shape)
     
     if i % print_every == 0:
         print("init vector is ", init_vector)
@@ -263,28 +290,55 @@ for i in range(n_steps):
     u_init = u_init.reshape(1, -1)
     Z_test = np.hstack((np.transpose(init_vector), u_init))
     Z_test = torch.tensor(Z_test).float().to(device)
-    predictions = likelihood(model(Z_test))
-    mean = predictions.mean
-    lower, upper = predictions.confidence_region()
-    mean = mean.cpu().detach().numpy()
-    lower = lower.cpu().detach().numpy()
-    upper = upper.cpu().detach().numpy()
-    print("mean is ", mean)
-    print("lower is ", lower)
-    print("upper is ", upper)
+    z_test_array.append(Z_test)
     
     dist_from_goal = np.linalg.norm(init_vector - final_states[:-1])
-    
-    post_results['gp_predictions'].append(mean)
-    post_results['gp_lower'].append(lower)
-    post_results['gp_upper'].append(upper)
     post_results['state_history'].append(init_vector)
     post_results['control_history'].append(u_init)
+    post_results['true_state'].append(true_state)
+    
+    error_prediction = true_state - init_vector
+    post_results['error_prediction'].append(error_prediction)
+    
+    # init_vector = true_state
     
     if dist_from_goal < tolerance:
         print("Goal reached")
         break 
 
+error = 0
+## output would be the residuals of the system 
+## we want to see how well the GP model can predict the residuals
+gp_pred_x = []
+gp_pred_y = []
+gp_pred_psi = []
+for i, z in enumerate(z_test_array):
+    
+    predictions = likelihood(model(z))
+    mean = predictions.mean
+    lower, upper = predictions.confidence_region()
+    mean = mean.cpu().detach().numpy()
+    lower = lower.cpu().detach().numpy()
+    upper = upper.cpu().detach().numpy()
+    
+    gp_x = mean[0][0] + post_results['state_history'][i][0]
+    gp_y = mean[0][1] + post_results['state_history'][i][1]
+    gp_psi = mean[0][2] + post_results['state_history'][i][2]
+    gp_pred_x.append(gp_x)
+    gp_pred_y.append(gp_y)
+    gp_pred_psi.append(gp_psi)
+
+    post_results['gp_predictions'].append(mean)
+    post_results['gp_lower'].append(lower)
+    post_results['gp_upper'].append(upper)
+    
+    diff_state = np.array(post_results['true_state'][i]) - np.array(post_results['state_history'][i])
+    
+    #compute the error
+    error += np.linalg.norm(mean - diff_state)
+        
+mse = error / len(z_test_array)
+print("MSE is ", mse)
 print("final state is ", init_vector)
 print("final time is ", t_init)
 
@@ -292,6 +346,14 @@ print("final time is ", t_init)
 x_history = []
 y_history = []
 psi_history = []
+
+error_x_history = []
+error_y_history = []
+error_psi_history = []
+
+true_x_history = []
+true_y_history = []
+true_psi_history = []
 
 gp_predictions = post_results['gp_predictions']
 gp_predictions = np.array(gp_predictions)
@@ -310,32 +372,63 @@ for state in post_results['state_history']:
     y_history.append(state[1])
     psi_history.append(state[2])
     
+for state in post_results['true_state']:
+    true_x_history.append(state[0])
+    true_y_history.append(state[1])
+    true_psi_history.append(state[2])
+
+for i in range(len(post_results['state_history'])):
+    error_x_history.append(post_results['true_state'][i][0] - post_results['state_history'][i][0])
+    error_y_history.append(post_results['true_state'][i][1] - post_results['state_history'][i][1])
+    error_psi_history.append(post_results['true_state'][i][2] - post_results['state_history'][i][2])
+     
+
 #%% Plot stuff
 fig, ax = plt.subplots(1, 1, figsize=(14, 10))
-ax.scatter(x_history, y_history, label='Nominal')
-ax.plot(gp_predictions[:,0], gp_predictions[:,1], 
-        label='GP', linestyle='--', color='r')
+ax.plot(x_history, y_history, label='Nominal', linestyle='-', marker='o', color='b')
+ax.plot(gp_pred_x, gp_pred_y, label='GP', linestyle='-', marker='o', color='r')
+ax.plot(true_x_history, true_y_history, label='True', linestyle='-', marker='o', color='g')
 #ax.fill_between(np.arange(len(x_history)), gp_lower[:,0], gp_upper[:,0], alpha=0.5)
 ax.set_title('X vs Y')
 ax.legend()
 
-
 fig,ax = plt.subplots(3, 1, figsize=(14, 10))
-ax[0].scatter(post_results['time_history'], x_history, label='Nominal')
-ax[0].plot(post_results['time_history'], gp_predictions[:,0], label='GP', linestyle='--', color='r')
+ax[0].plot(post_results['time_history'], error_x_history, linestyle='--', marker='s', label='X Error', color='b')
+ax[0].plot(post_results['time_history'], gp_predictions[:,0], linestyle='--', marker='s', label='GP', color='r')
 ax[0].fill_between(post_results['time_history'], gp_lower[:,0], gp_upper[:,0], alpha=0.5)
 
-ax[1].scatter(post_results['time_history'], y_history, label='Nominal')
-ax[1].plot(post_results['time_history'], gp_predictions[:,1], label='GP', linestyle='--', color='r')
+ax[1].plot(post_results['time_history'], error_y_history, linestyle='--', marker='s', label='Y Error' , color='b')
+ax[1].plot(post_results['time_history'], gp_predictions[:,1], linestyle='--', marker='s', label='GP', color='r')
 ax[1].fill_between(post_results['time_history'], gp_lower[:,1], gp_upper[:,1], alpha=0.5)
 
-ax[2].scatter(post_results['time_history'], psi_history, label='Nominal')
-ax[2].plot(post_results['time_history'], gp_predictions[:,2], label='GP', linestyle='--', color='r')
+ax[2].plot(post_results['time_history'], error_psi_history, linestyle='--', marker='s', label='Psi Error', color='b')
+ax[2].plot(post_results['time_history'], gp_predictions[:,2], linestyle='--', marker='s', label='GP', color='r')
 ax[2].fill_between(post_results['time_history'], gp_lower[:,2], gp_upper[:,2], alpha=0.5)
 
-ax[0].set_title('X State')
-ax[1].set_title('Y State')
-ax[2].set_title('Psi State')
+ax[0].set_title('X Error Prediction')
+ax[1].set_title('Y Error Prediction')
+ax[2].set_title('Psi Error Prediction')
+
+#save the test dataset 
+#convert to z_test to tensor
+if SAVE:
+    z_test_array = torch.stack(z_test_array)
+    z_test_array = z_test_array.reshape(-1, car.n_states + car.n_controls)
+    #convert to cpu
+    z_test_array = z_test_array.cpu().numpy()
+    pkl.dump(z_test_array, open("Z_train.pkl", "wb"))
+
+    #convert x_history, y_history, psi_history to tensor
+    x_history = torch.tensor(error_x_history)
+    y_history = torch.tensor(error_y_history)
+    psi_history = torch.tensor(error_psi_history)
+
+    y_true = torch.stack([x_history, y_history, psi_history], dim=1)
+    y_true = y_true.reshape(-1, car.n_states)
+    y_true = y_true.cpu().numpy()
+    pkl.dump(y_true, open("Y_train.pkl", "wb"))
+
+#plot the titl
 
 for a in ax:
     a.legend()
