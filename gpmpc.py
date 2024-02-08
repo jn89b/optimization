@@ -205,6 +205,8 @@ class MultitaskGPModel(gpytorch.models.ExactGP):
     def forward(self, x):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
+        print(mean_x.shape)
+        print(covar_x.shape)
         return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x)
 
 
@@ -245,6 +247,7 @@ for i in range(training_iter):
     optimizer.step()
     mse_list.append(loss.item())
     
+#%% 
 # Set into eval mode
 model.eval()
 likelihood.eval()

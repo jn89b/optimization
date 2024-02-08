@@ -9,6 +9,8 @@
 ## Readings 
 - https://www.frontiersin.org/articles/10.3389/fnbot.2021.723049/full#h4
 - Good paper paper to refer to in GP 
+- https://towardsdatascience.com/understanding-gaussian-process-the-socratic-way-ba02369d804
+
 
 # Thoughts
 - Checkout using ensemble GP:

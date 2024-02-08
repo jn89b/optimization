@@ -2,7 +2,6 @@ import gpytorch
 
 
 
-
 class MultitaskGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, num_states:int):
         super(MultitaskGPModel, self).__init__(train_x, train_y, likelihood)
@@ -12,7 +11,12 @@ class MultitaskGPModel(gpytorch.models.ExactGP):
             gpytorch.means.ConstantMean(), num_tasks=num_states
         )
         
-        self.base_kernel = gpytorch.kernels.RBFKernel()
+        #self.base_kernel = gpytorch.kernels.RBFKernel()
+        # self.base_kernel = gpytorch.kernels.PeriodicKernel() 
+        # add kernels together to get the final kernel
+        
+        self.base_kernel = gpytorch.kernels.PeriodicKernel()
+        
         self.covar_module = gpytorch.kernels.MultitaskKernel(
             self.base_kernel, num_tasks=num_states, rank=1
         )
@@ -21,7 +25,7 @@ class MultitaskGPModel(gpytorch.models.ExactGP):
         # )
         
         self.covar_module = gpytorch.kernels.MultitaskKernel(
-            gpytorch.kernels.RBFKernel(), num_tasks=num_states, rank=1
+            self.base_kernel, num_tasks=num_states, rank=1
         )
         
         # self.covar_module = gpytorch.kernels.MultitaskKernel(

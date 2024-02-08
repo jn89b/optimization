@@ -195,7 +195,8 @@ for i in range(training_iter):
     print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
     optimizer.step()
     mse_list.append(loss.item())
-    
+
+#%% 
 # begin simulation of real life car
 # Set into eval mode
 model.eval()
