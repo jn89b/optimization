@@ -62,11 +62,8 @@ train_data = pd.read_csv(train_file_dir+'train_0.csv')
 train_data['airspeed'] = np.sqrt(train_data['vx']**2 + train_data['vy']**2 + train_data['vz']**2)
 Z_train = train_data[['x','y','z','phi','theta','psi','p','q','r','airspeed']].to_numpy()
 #drop the last row
-# Z_train = Z_train[:-1,:]
 Y_train = train_data[['x','y','z','phi','theta','psi']].to_numpy()
 #drop the first row
-# Y_train = Y_train[1:,:]
-
 n_states = 6
 n_controls = 4
 x_states = Z_train[:, :n_states]
@@ -118,6 +115,7 @@ mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
 training_iter = 150
 old_loss = 0
+
 for i in range(training_iter):
     optimizer.zero_grad()
     output = model(Z_train)
@@ -126,10 +124,6 @@ for i in range(training_iter):
     print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
     optimizer.step()
     delta_loss = old_loss - loss.item()
-    #do early stopping
-    # if delta_loss < 1e-3:
-    #     break
-    
     old_loss = loss.item()
     
 model.eval()
@@ -177,7 +171,6 @@ y_outputs = [x_error, y_error, z_error]
 # ax[2].scatter(time_vector, z_error, label='Actual')
 # ax[2].fill_between(np.arange(mean.shape[0]), lower[:, 2], upper[:, 2], alpha=0.5)
 # ax[2].set_title('Z')
-
 
 #roll pitch yaw
 fig, ax = plt.subplots(3, 1, figsize=(10, 10))

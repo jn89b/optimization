@@ -1,5 +1,5 @@
 import casadi as ca
-
+import numpy  as  np
 class OptiCasadi:
     def __init__(self, mpc_params:dict,
                  casadi_model) -> None:
@@ -10,6 +10,7 @@ class OptiCasadi:
         
         self.init_mpc_params()
         self.init_decision_variables()
+        self.solution_options = None
         
     def init_mpc_params(self)-> None:
         """initialize the mpc parameters"""
@@ -22,24 +23,39 @@ class OptiCasadi:
         self.X = self.opti.variable(self.casadi_model.n_states, self.N+1)
         self.U = self.opti.variable(self.casadi_model.n_controls, self.N)
         
-    def set_cost_function(self) -> None:
-        pass
+    # def set_control_constraints(self) -> None:
+    #     pass    
     
-    def set_constraints(self) -> None:
-        pass
+    # def set_constraints(self) -> None:
+    #     pass
     
-    def set_init_constraints(self) -> None:
-        pass
+    # def set_init_constraints(self) -> None:
+    #     pass
     
-    def set_terminal_constraints(self) -> None:
-        pass
+    # def set_terminal_constraints(self) -> None:
+    #     pass
     
-    def set_state_constraints(self) -> None:
-        pass
+    # def set_state_constraints(self) -> None:
+    #     pass
     
-    def set_control_constraints(self) -> None:
-        pass    
-     
-    
+    # def set_cost_function(self) -> None:
+    #     pass
+
+    def set_solution_options(self, print_time:int=0) -> None:
+        opts = {
+            'ipopt': {
+                'print_level': 1,
+                'max_iter': 5000,
+                'print_level': 1,
+                'acceptable_tol': 1e-2,
+                'acceptable_obj_change_tol': 1e-2,
+                'hessian_approximation': 'limited-memory',
+            },
+            'print_time': print_time,
+            'expand': 1,
+        }
+        
+        self.opti.solver('ipopt', opts)#, {'ipopt': {'print_level': 0}})
+        print('Solution options set')
 
 

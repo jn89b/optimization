@@ -61,7 +61,6 @@ class GPMPController(OptiCasadi):
             self.U[1,:],
             psi_rate_max
         ))
-
         
         print("control constraints set")
         
@@ -82,7 +81,6 @@ class GPMPController(OptiCasadi):
         Q = self.mpc_params['Q']
         R = self.mpc_params['R']
         
-
         cost = 0
         x_position = self.X[0,:]
         y_position = self.X[1,:]
