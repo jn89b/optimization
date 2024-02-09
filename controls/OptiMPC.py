@@ -45,7 +45,7 @@ class OptiCasadi:
         opts = {
             'ipopt': {
                 'print_level': 1,
-                'max_iter': 2000,
+                'max_iter': 200,
                 'print_level': 1,
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,

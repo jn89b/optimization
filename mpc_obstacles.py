@@ -142,6 +142,29 @@ class PlaneMPC(OptiCasadi):
             state_next_RK4 = states + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
             self.opti.subject_to(state_next == state_next_RK4)
 
+    def compute_obstacle_cost(self, cost, x_position, y_position) -> None:
+        obs_avoidance_weight = self.obs_avoid_params['weight']
+        obs_x_vector = self.obs_avoid_params['x']
+        obs_y_vector = self.obs_avoid_params['y']
+        obs_radii_vector = self.obs_avoid_params['radii']
+        safe_distance = self.obs_avoid_params['safe_distance']
+                
+        for i,x in enumerate(obs_x_vector):
+            obs_x = obs_x_vector[i]
+            obs_y = obs_y_vector[i]
+            obs_radii = obs_radii_vector[i]
+
+            obstacle_constraints = self.opti.variable(self.N+1)
+            obstacle_distance = ca.sqrt((obs_x - x_position)**2 + \
+                (obs_y - y_position)**2)
+
+            self.opti.subject_to(obstacle_distance.T >= \
+                obstacle_constraints + obs_radii + safe_distance)
+
+            cost += obs_avoidance_weight * ca.sumsqr(obstacle_constraints) 
+        
+        return cost
+
     def set_cost_function(self, x_final:np.ndarray) -> None:
         Q = self.mpc_params['Q']
         R = self.mpc_params['R']
@@ -154,31 +177,32 @@ class PlaneMPC(OptiCasadi):
         theta = self.X[4, :]
         psi = self.X[5, :]
         
-        
         #unit vector in the direction of the plane
         unit_vector_ego = ca.horzcat(ca.cos(psi), ca.sin(psi))
     
         if self.use_obs_avoidance and self.obs_avoid_params is not None:
-            print('Using obstacle avoidance')
-            obs_avoidance_weight = self.obs_avoid_params['weight']
-            obs_x_vector = self.obs_avoid_params['x']
-            obs_y_vector = self.obs_avoid_params['y']
-            obs_radii_vector = self.obs_avoid_params['radii']
-            safe_distance = self.obs_avoid_params['safe_distance']
+            cost += self.compute_obstacle_cost(cost, x_position, y_position)
             
-            for i in range(len(obs_x_vector)):
-                obs_x = obs_x_vector[i]
-                obs_y = obs_y_vector[i]
-                obs_radii = obs_radii_vector[i]
-                
-                obstacle_constraints = self.opti.variable(self.N+1)
-                obstacle_distance = ca.sqrt((obs_x - x_position)**2 + \
-                    (obs_y - y_position)**2)
+            # print('Using obstacle avoidance')
+            # obs_avoidance_weight = self.obs_avoid_params['weight']
+            # obs_x_vector = self.obs_avoid_params['x']
+            # obs_y_vector = self.obs_avoid_params['y']
+            # obs_radii_vector = self.obs_avoid_params['radii']
+            # safe_distance = self.obs_avoid_params['safe_distance']
             
-                self.opti.subject_to(obstacle_distance.T >= \
-                    obstacle_constraints + obs_radii + safe_distance)
+            # for i,x enumerate(obs_x_vector):
+            #     obs_x = obs_x_vector[i]
+            #     obs_y = obs_y_vector[i]
+            #     obs_radii = obs_radii_vector[i]
                 
-                cost += obs_avoidance_weight * ca.sumsqr(obstacle_constraints) 
+            #     obstacle_constraints = self.opti.variable(self.N+1)
+            #     obstacle_distance = ca.sqrt((obs_x - x_position)**2 + \
+            #         (obs_y - y_position)**2)
+            
+            #     self.opti.subject_to(obstacle_distance.T >= \
+            #         obstacle_constraints + obs_radii + safe_distance)
+                
+            #     cost += obs_avoidance_weight * ca.sumsqr(obstacle_constraints) 
                         
         #check if x_final is a numpy array
         if isinstance(x_final, np.ndarray):
