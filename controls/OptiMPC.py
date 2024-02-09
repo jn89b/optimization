@@ -45,13 +45,13 @@ class OptiCasadi:
         opts = {
             'ipopt': {
                 'print_level': 1,
-                'max_iter': 5000,
+                'max_iter': 2000,
                 'print_level': 1,
-                'acceptable_tol': 1e-2,
-                'acceptable_obj_change_tol': 1e-2,
-                'hessian_approximation': 'limited-memory',
+                # 'acceptable_tol': 1e-2,
+                # 'acceptable_obj_change_tol': 1e-2,
+                # 'hessian_approximation': 'limited-memory',
             },
-            'print_time': print_time,
+            'print_time': 1,
             'expand': 1,
         }
         
