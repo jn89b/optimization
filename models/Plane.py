@@ -6,10 +6,14 @@ from matplotlib import pyplot as plt
 
 
 class Plane():
-    def __init__(self) -> None:
+    def __init__(self, 
+                 include_time:bool=True,
+                 dt_val:float=0.05) -> None:
+        self.include_time = include_time
+        self.dt_val = dt_val
         self.define_states()
-        self.define_controls()
-    
+        self.define_controls() 
+        
     def define_states(self):
         """define the states of your system"""
         #positions ofrom world
@@ -21,15 +25,27 @@ class Plane():
         self.phi_f = ca.SX.sym('phi_f')
         self.theta_f = ca.SX.sym('theta_f')
         self.psi_f = ca.SX.sym('psi_f')
+        self.t = ca.SX.sym('t')
 
-        self.states = ca.vertcat(
-            self.x_f,
-            self.y_f,
-            self.z_f,
-            self.phi_f,
-            self.theta_f,
-            self.psi_f
-        )
+        if self.include_time:
+            self.states = ca.vertcat(
+                self.x_f,
+                self.y_f,
+                self.z_f,
+                self.phi_f,
+                self.theta_f,
+                self.psi_f, 
+                self.t
+            )
+        else:
+            self.states = ca.vertcat(
+                self.x_f,
+                self.y_f,
+                self.z_f,
+                self.phi_f,
+                self.theta_f,
+                self.psi_f, 
+            )
 
         self.n_states = self.states.size()[0] #is a column vector 
 
@@ -69,19 +85,29 @@ class Plane():
         
         #check if the denominator is zero
         self.v_cmd = ca.if_else(self.v_cmd == 0, 1e-6, self.v_cmd)
-        
-        
         self.psi_fdot   = self.u_psi + (self.g * (ca.tan(self.phi_f) / self.v_cmd))
 
-
-        self.z_dot = ca.vertcat(
-            self.x_fdot,
-            self.y_fdot,
-            self.z_fdot,
-            self.phi_fdot,
-            self.theta_fdot,
-            self.psi_fdot
-        )
+        self.t_dot = self.t 
+        
+        if self.include_time:
+            self.z_dot = ca.vertcat(
+                self.x_fdot,
+                self.y_fdot,
+                self.z_fdot,
+                self.phi_fdot,
+                self.theta_fdot,
+                self.psi_fdot,
+                self.t_dot
+            )
+        else:
+            self.z_dot = ca.vertcat(
+                self.x_fdot,
+                self.y_fdot,
+                self.z_fdot,
+                self.phi_fdot,
+                self.theta_fdot,
+                self.psi_fdot,
+            )
 
         #ODE function
         self.function = ca.Function('f', 
