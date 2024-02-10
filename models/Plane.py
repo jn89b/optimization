@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 
 class Plane():
     def __init__(self, 
-                 include_time:bool=True,
+                 include_time:bool=False,
                  dt_val:float=0.05) -> None:
         self.include_time = include_time
         self.dt_val = dt_val
@@ -35,8 +35,7 @@ class Plane():
                 self.phi_f,
                 self.theta_f,
                 self.psi_f, 
-                self.t
-            )
+                self.t)
         else:
             self.states = ca.vertcat(
                 self.x_f,

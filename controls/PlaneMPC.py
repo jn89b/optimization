@@ -160,16 +160,67 @@ class PlaneMPC(OptiCasadi):
             obs_radii = obs_radii_vector[i]
 
             obstacle_constraints = self.opti.variable(self.N+1)
-            obstacle_distance = ca.sqrt((obs_x - x_position)**2 + \
+            obstacle_distance = -ca.sqrt((obs_x - x_position)**2 + \
                 (obs_y - y_position)**2)
-
+            obstacle_distance = 1/obstacle_distance
             self.opti.subject_to(obstacle_distance.T >= \
                 obstacle_constraints + obs_radii + safe_distance)
 
-            cost += obs_avoidance_weight * ca.sumsqr(obstacle_constraints) 
+            avoidance_cost = obs_avoidance_weight * ca.sumsqr(obstacle_constraints)
         
-        return cost
+        return avoidance_cost
 
+    def compute_dynamic_threats_cost(self, cost:float) -> None:
+        #ego vehicle
+        print('Computing dynamic threats cost')
+        x_pos    = self.X[0, :]
+        y_pos    = self.X[1, :]
+        z_pos    = self.X[2, :]
+        psi      = self.X[5, :]
+        ego_time = self.X[6, :]        
+        #this is a list of dynamic threats refer to the Threat class
+        threat_list = self.dynamic_threat_params['threats'] 
+        num_threats = len(threat_list)
+        
+        for threat in threat_list:
+            threat_x_traj = threat.x_traj
+            threat_y_traj = threat.y_traj
+            # threat_z_traj = threat.z_traj
+            threat_psi_traj = threat.psi_traj
+            threat_time_traj = threat.time_traj
+            #make sure that the threat trajectory is the same length as the ego vehicle
+            if len(threat_x_traj) != self.N+1:
+                raise ValueError('Threat trajectory must be the same length as the ego vehicle', 
+                                 len(threat_x_traj), self.N+1)
+                
+                
+            threat_parameter = self.opti.parameter(self.N+1)
+            threat_constraints = self.opti.variable(self.N+1)
+
+            # distance = ca.sqrt((x_pos - threat_x_traj)**2 + \
+            #     (y_pos - threat_y_traj)**2 + (z_pos - threat_z_traj)**2)
+
+            distance = ca.sqrt((x_pos.T - threat_x_traj)**2 + \
+                (y_pos.T - threat_y_traj)**2)
+
+            #avoid division by zero
+            distance = ca.if_else(distance < 1E-3, 1E-3, distance)
+   
+            distance_cost = 1/(distance)
+   
+            threat_radii = 1.0 
+            safe_distance = 1
+            # self.opti.subject_to(threat_constraints >= \
+            #     threat_constraints + threat_radii + safe_distance)
+            
+            # self.opti.set_value(threat_parameter, distance)
+            
+            #add the cost to the total cost
+            threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(distance_cost)
+            cost += threat_cost
+            
+        return cost
+            
     def set_cost_function(self, x_final:np.ndarray) -> None:
         Q = self.mpc_params['Q']
         R = self.mpc_params['R']
@@ -190,7 +241,7 @@ class PlaneMPC(OptiCasadi):
             cost += self.compute_obstacle_cost(cost, x_position, y_position)
         
         if self.use_dynamic_threats and self.dynamic_threat_params is not None:
-            pass
+            cost += self.compute_dynamic_threats_cost(cost)
         
         #check if x_final is a numpy array
         if isinstance(x_final, np.ndarray):

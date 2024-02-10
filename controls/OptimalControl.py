@@ -1,0 +1,183 @@
+import casadi as ca
+import numpy as np
+import abc 
+
+class OptimalControlProblem():
+    def __init__(self, mpc_params:dict, model_casadi) -> None:
+        self.mpc_params = mpc_params
+        self.N = self.mpc_params['N']
+        self.Q = self.mpc_params['Q']
+        self.R = self.mpc_params['R']
+        self.dt = self.mpc_params['dt']
+        self.model_casadi = model_casadi
+        
+        self.init_decision_variables()
+        self.define_bound_constraints()
+        self.set_dynamic_constraints()
+        self.solver = None
+        
+    def init_decision_variables(self):
+        #decision variables
+        """intialize decision variables for state space models"""
+        model_casadi = self.model_casadi
+        self.X = ca.SX.sym('X', model_casadi.n_states, self.N + 1)
+        self.U = ca.SX.sym('U', model_casadi.n_controls, self.N)
+
+        #column vector for storing initial and target locations
+        self.P = ca.SX.sym('P', model_casadi.n_states + model_casadi.n_states)
+
+        self.OPT_variables = ca.vertcat(
+            self.X.reshape((-1, 1)),   # Example: 3x11 ---> 33x1 where 3=states, 11=N+1
+            self.U.reshape((-1, 1))
+        )
+        print('Decision variables initialized')
+        
+        
+    def define_bound_constraints(self):
+        """define bound constraints of system"""
+        self.variables_list = [self.X, self.U]
+        self.variables_name = ['X', 'U']
+        
+        #function to turn decision variables into one long row vector
+        self.pack_variables_fn = ca.Function('pack_variables_fn', self.variables_list, 
+                                             [self.OPT_variables], self.variables_name, 
+                                             ['flat'])
+        
+        #function to turn decision variables into respective matrices
+        self.unpack_variables_fn = ca.Function('unpack_variables_fn', [self.OPT_variables], 
+                                               self.variables_list, ['flat'], 
+                                               self.variables_name)
+
+        ##helper functions to flatten and organize constraints
+        self.lbx = self.unpack_variables_fn(flat=-ca.inf)
+        self.ubx = self.unpack_variables_fn(flat=ca.inf)
+        print('Bound constraints defined')
+    
+    @abc.abstractmethod
+    def update_bound_constraints(self) -> None:
+        """update the bound constraints"""
+        raise NotImplementedError('Must implement this function:', self.update_bound_constraints.__name__)
+
+    def set_dynamic_constraints(self) -> None:
+        #dynamic constraints
+        #equality constraint for initial condition
+        self.g = []
+        
+        self.g = self.X[:, 0] - self.P[:self.model_casadi.n_states]                  
+        for k in range(self.N):
+            states = self.X[:, k]
+            controls = self.U[:, k]
+            k1 = self.model_casadi.function(states, controls)
+            k2 = self.model_casadi.function(states + self.dt/2 * k1, controls)
+            k3 = self.model_casadi.function(states + self.dt/2 * k2, controls)
+            k4 = self.model_casadi.function(states + self.dt * k3, controls)
+            state_next_rk4 = states + self.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+            #constraint to make sure our dynamics are satisfied
+            self.g = ca.vertcat(self.g, self.X[:, k+1] - state_next_rk4) 
+        
+    def compute_dynamics_cost(self) -> ca.SX:
+        """compute the cost function"""
+        n_states = self.model_casadi.n_states
+        Q = self.Q
+        R = self.R
+        P = self.P
+        x_final = P[n_states:]
+        
+        cost = 0
+        for k in range(self.N):
+            states = self.X[:, k]
+            controls = self.U[:, k]
+            
+            cost += cost \
+                    + (states - P[n_states:]).T @ Q @ (states - P[n_states:]) \
+                    + controls.T @ R @ controls        
+        
+        #add terminal cost
+        # cost += (self.X[:, self.N] - x_final).T @ Q @ (self.X[:, self.N] - x_final)
+        print('Dynamics cost computed')
+        return cost
+    
+    @abc.abstractmethod
+    def compute_total_cost(self) -> ca.SX:
+        """compute the total cost function"""
+        # return self.compute_dynamics_cost(x_final)
+        raise NotImplementedError('Must implement this function:', self.compute_total_cost.__name__)
+    
+    
+    def init_solver(self, cost_fn:ca.SX) -> None:
+        
+        nlp_prob = {
+            'f': cost_fn,
+            'x': self.OPT_variables,
+            'g': self.g,
+            'p': self.P
+        }
+        solver_opts = {
+            'ipopt': {
+                # 'max_iter': Config.MAX_ITER,
+                # 'print_level': Config.PRINT_LEVEL,
+                # 'acceptable_tol': Config.ACCEPT_TOL,
+                # 'acceptable_obj_change_tol': Config.ACCEPT_OBJ_TOL,
+                # 'linear_solver': 'ma27',
+            },
+            # 'jit':True,
+            # 'print_time': Config.PRINT_TIME,
+            'expand': 1
+        }
+
+        #create solver
+        self.solver = ca.nlpsol('solver', 'ipopt', 
+            nlp_prob, solver_opts)
+        print('Solver initialized')
+        
+    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> ca.OptiSol:
+        """solve the optimal control problem"""
+        
+        state_init = ca.DM(x0)
+        state_final = ca.DM(xF)
+        
+        X0 = ca.repmat(state_init, 1, self.N + 1)
+        U0 = ca.repmat(u0, 1, self.N)
+
+        n_states = self.model_casadi.n_states
+        n_controls = self.model_casadi.n_controls
+        
+        lbg = ca.DM.zeros((n_states*(self.N+1), 1))
+        ubg  =  ca.DM.zeros((n_states*(self.N+1), 1))
+        
+        args = {
+            'lbg': lbg,
+            'ubg': ubg,
+            'lbx': self.pack_variables_fn(**self.lbx)['flat'],
+            'ubx': self.pack_variables_fn(**self.ubx)['flat'],
+        }
+        
+        args['p'] = ca.vertcat(
+            state_init,    # current state
+            state_final   # target state
+        )
+        
+        args['x0'] = ca.vertcat(
+            ca.reshape(X0, n_states*(self.N+1), 1),
+            ca.reshape(U0, n_controls*self.N, 1)
+        )
+
+        sol = self.solver(
+            x0=args['x0'],
+            lbx=args['lbx'],
+            ubx=args['ubx'],
+            lbg=args['lbg'],
+            ubg=args['ubg'],
+            p=args['p']
+        )
+        
+        return sol
+        
+    
+    # def reinit_start_final(self, start:np.ndarray, final:np.ndarray) -> None:
+    #     """reinitialize the start and final states"""
+    #     self.start = start
+    #     self.final = final
+    
+
+        

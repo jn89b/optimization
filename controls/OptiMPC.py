@@ -44,15 +44,15 @@ class OptiCasadi:
     def set_solution_options(self, print_time:int=0) -> None:
         opts = {
             'ipopt': {
-                'print_level': 1,
-                'max_iter': 200,
-                'print_level': 1,
+                # 'print_level': 2,
+                # 'max_iter': 200,
+                # # 'linear_solver': 'mumps',
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,
                 # 'hessian_approximation': 'limited-memory',
             },
-            'print_time': 1,
-            'expand': 1,
+            # 'print_time': 2,
+            # 'expand': 1,
         }
         
         self.opti.solver('ipopt', opts)#, {'ipopt': {'print_level': 0}})
