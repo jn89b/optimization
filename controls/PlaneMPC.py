@@ -205,7 +205,6 @@ class PlaneMPC(OptiCasadi):
 
             #avoid division by zero
             distance = ca.if_else(distance < 1E-3, 1E-3, distance)
-   
             distance_cost = 1/(distance)
    
             threat_radii = 1.0 

@@ -114,14 +114,14 @@ class OptimalControlProblem():
         }
         solver_opts = {
             'ipopt': {
-                # 'max_iter': Config.MAX_ITER,
-                # 'print_level': Config.PRINT_LEVEL,
-                # 'acceptable_tol': Config.ACCEPT_TOL,
-                # 'acceptable_obj_change_tol': Config.ACCEPT_OBJ_TOL,
+                # 'max_iter': 500,
+                # 'print_level': 0,
+                # 'acceptable_tol': 1e-2,
+                # 'acceptable_obj_change_tol': 1e-2,
                 # 'linear_solver': 'ma27',
             },
             # 'jit':True,
-            # 'print_time': Config.PRINT_TIME,
+            'print_time': 1,
             'expand': 1
         }
 
@@ -130,7 +130,7 @@ class OptimalControlProblem():
             nlp_prob, solver_opts)
         print('Solver initialized')
         
-    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> ca.OptiSol:
+    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:
         """solve the optimal control problem"""
         
         state_init = ca.DM(x0)
@@ -172,12 +172,3 @@ class OptimalControlProblem():
         )
         
         return sol
-        
-    
-    # def reinit_start_final(self, start:np.ndarray, final:np.ndarray) -> None:
-    #     """reinitialize the start and final states"""
-    #     self.start = start
-    #     self.final = final
-    
-
-        

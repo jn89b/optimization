@@ -108,8 +108,8 @@ plane = Plane()
 plane.set_state_space()
 
 
-USE_OBS_AVOIDANCE  = True
-USE_DYNAMIC_THREAT = False
+USE_OBS_AVOIDANCE  = False
+USE_DYNAMIC_THREAT = True
 USE_TIME_MINIMIZE  = False
 
 #%% Obstacle avoidance
@@ -195,14 +195,14 @@ if USE_DYNAMIC_THREAT:
     
     num_dynamic_threats = 1 
     dynamic_threats = []
-    threat_x_positions = [2, 0]
-    threat_y_positions = [0, 5]
+    threat_x_positions = [2]
+    threat_y_positions = [0]
     final_position = np.array([10, 10, np.deg2rad(225)])
     for i in range(num_dynamic_threats):
         threat_x = np.random.uniform(-3, 3)
         threat_y = np.random.uniform(1.5, 4)
-        # threat_x = threat_x_positions[i]
-        # threat_y = threat_y_positions[i]
+        threat_x = threat_x_positions[i]
+        threat_y = threat_y_positions[i]
         threat_psi = np.arctan2(final_position[1] - threat_y,
                                 final_position[0] - threat_x)
         threat_position = np.array([threat_x, threat_y, threat_psi])
