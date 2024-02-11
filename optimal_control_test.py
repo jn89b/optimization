@@ -21,7 +21,7 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
 mpc_params = {
     'N': 30,
     'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0]),
-    'R': ca.diag([0, 0, 0, 0]),
+    'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
 
@@ -70,16 +70,16 @@ state_indices = {
     'airspeed': 6    
 }
 
-init_states = np.array([1, #x 
-                        1, #y
+init_states = np.array([2, #x 
+                        2, #y
                         0, #z
                         0, #phi
                         0, #theta
                         np.deg2rad(45), #psi# 3  #airspeed
                         ]) 
 
-final_states = np.array([15, #x
-                         15, #y
+final_states = np.array([10, #x
+                         10, #y
                          0, #z
                          0,  #phi
                          0,  #theta
@@ -89,7 +89,7 @@ final_states = np.array([15, #x
 init_controls = np.array([0, 
                           0, 
                           0, 
-                          control_constraints['v_cmd_min']])
+                          control_constraints['v_cmd_max']])
 
 
 
@@ -98,8 +98,8 @@ plane.set_state_space()
 
 USE_BASIC = False
 USE_OBS_AVOID = False
-USE_DYNAMIC_THREATS = True
-USE_PEW_PEW = False
+USE_DYNAMIC_THREATS = False
+USE_PEW_PEW = True
 plt.close('all')
 
 #%% Use the basic MPC
@@ -314,13 +314,13 @@ elif USE_PEW_PEW:
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 0.0, 
+            'weight': 1E-6, 
             'radius_target': 0.5
             }
     
     obs_avoid_params = {
-        'weight': 1E-3,
-        'safe_distance': 0.5,
+        'weight': 1E-6,
+        'safe_distance': 0.1,
         'x': [],
         'y': [],
         'radii': []

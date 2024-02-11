@@ -172,6 +172,7 @@ class PlaneOptControl(OptimalControlProblem):
             roll  = self.X[3, i]
             pitch = self.X[4, i]
             yaw   = self.X[5, i]
+            v_cmd = self.U[3, i]
 
             #get the unit vector of the ego vehicle
             unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw), 0)
@@ -188,7 +189,11 @@ class PlaneOptControl(OptimalControlProblem):
             #we add a negative sign to flip the value since we are minimizing 
             dot_product = -ca.dot(los_target, unit_vector)
             
-            
+            #get the current control for the velocity command to relate it to time on target
+            #the slower we go the longer we stay on target
+            #invert this to minimize
+            time_on_target = -dtarget/v_cmd
+        
             #convert x_pos, y_pos, z_pos to a 3D vector
             ref_point = ca.horzcat(x_pos, y_pos, z_pos)
             self.Effector.set_effector_location3d(ref_point, roll ,
@@ -198,10 +203,9 @@ class PlaneOptControl(OptimalControlProblem):
             within_range = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
             within_fov = ca.if_else(dot_product > 0, 1, 0)
 
-            
             effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
             #put a negative since we want to minimize the cost, so just flip the sign
-            effector_cost += within_range * within_fov* -effector_dmg
+            effector_cost += within_range * within_fov* (-effector_dmg * time_on_target)
 
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
