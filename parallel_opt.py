@@ -1,75 +1,78 @@
-#
-#     MIT No Attribution
-#
-#     Copyright (C) 2010-2023 Joel Andersson, Joris Gillis, Moritz Diehl, KU Leuven.
-#
-#     Permission is hereby granted, free of charge, to any person obtaining a copy of this
-#     software and associated documentation files (the "Software"), to deal in the Software
-#     without restriction, including without limitation the rights to use, copy, modify,
-#     merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-#     permit persons to whom the Software is furnished to do so.
-#
-#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-#     INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-#     PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-#     OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-#     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
+import casadi as ca
 import numpy as np
-import time
-print("importing casadi...")
-from casadi import *
 
 
-# number of inputs to evaluate in parallel
-N = 300
+mpc_params = {
+    'N': 30,
+    'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0]),
+    'R': ca.diag([0, 0, 0, 0]),
+    'dt': 0.1
+}
 
+control_constraints = {
+    'u_phi_min':  -np.deg2rad(45),
+    'u_phi_max':   np.deg2rad(45),
+    'u_theta_min':-np.deg2rad(15),
+    'u_theta_max': np.deg2rad(15),
+    'u_psi_min':  -np.deg2rad(45),
+    'u_psi_max':   np.deg2rad(45),
+    'v_cmd_min':   3,
+    'v_cmd_max':   6
+}
 
-# dummy input
-dummyInput = np.linspace(0.0, 2.0*np.pi, N)
+state_constraints = {
+    'x_min': -np.inf,
+    'x_max': np.inf,
+    'y_min': -np.inf,
+    'y_max': np.inf,
+    'z_min': -10,
+    'z_max': 50,
+    'phi_min':  -np.deg2rad(45),
+    'phi_max':   np.deg2rad(45),
+    'theta_min':-np.deg2rad(15),
+    'theta_max': np.deg2rad(15),
+    # 'psi_min':  -np.deg2rad(180),
+    # 'psi_max':   np.deg2rad(180),
+    'airspeed_min': 1,
+    'airspeed_max': 10
+}
 
+control_indices = {
+    'u_phi': 0,
+    'u_theta': 1,
+    'u_psi': 2,
+    'v_cmd': 3
+}
 
-# make a dummy function that's moderately expensive to evaluate
-print("creating dummy function....")
-x = SX.sym('x')
-y = x
-for k in range(100000):
-    y = sin(y)
-f0 = Function('f', [x], [y])
+state_indices = {
+    'x_dot': 0,
+    'y_dot': 1,
+    'z_dot': 2,
+    'phi_dot': 3,
+    'theta_dot': 4,
+    'psi_dot': 5,
+    'airspeed': 6    
+}
 
+init_states = np.array([1, #x 
+                        1, #y
+                        0, #z
+                        0, #phi
+                        0, #theta
+                        np.deg2rad(45), #psi# 3  #airspeed
+                        ]) 
 
-# evaluate it serially, the old-fasioned way
-X = MX.sym('x',N)
-Y = vertcat(*[f0(X[k]) for k in range(N)])
-fNaiveParallel = Function('fParallel', [X], [Y])
+final_states = np.array([15, #x
+                         15, #y
+                         0, #z
+                         0,  #phi
+                         0,  #theta
+                         0,  #psi
+                         ]) 
 
-print("evaluating naive parallel function...")
-t0 = time.time()
-outNaive = fNaiveParallel(dummyInput)
-t1 = time.time()
-print("evaluated naive parallel function in %.3f seconds" % (t1 - t0))
+init_controls = np.array([0, 
+                          0, 
+                          0, 
+                          control_constraints['v_cmd_min']])
 
-
-# evaluate it using new serial map construct
-fMap = f0.map(N)
-
-print("evaluating serial map function...")
-t0 = time.time()
-outMap = fMap(dummyInput)
-t1 = time.time()
-print("evaluated serial map function in %.3f seconds" % (t1 - t0))
-# the following has different shaped outputs, so it's commented out
-#print outNaive == outMap
-
-
-# evaluate it using new parallel map construct
-fMap = f0.map(N, "openmp")
-
-print("evaluating parallel map function...")
-t0 = time.time()
-outMap = fMap(dummyInput)
-t1 = time.time()
-print("evaluated parallel map function in %.3f seconds" % (t1 - t0))
-# the following has different shaped outputs, so it's commented out
-#print outNaive == outMap
+def solve_

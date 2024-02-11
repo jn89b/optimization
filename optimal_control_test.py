@@ -272,7 +272,7 @@ elif USE_DYNAMIC_THREATS:
         threat_position = np.array([threat_x, threat_y, threat_psi])
         
         threat_params = {
-            'safe_distance': 0.5,
+            'safe_distance': 2.0,
             'velocity': 5,
             'type': 'holonomic'
         }
@@ -304,27 +304,8 @@ elif USE_DYNAMIC_THREATS:
         'time_index': 5 #check the other time indicies 
     }    
     
-    # plane_mpc.update_dynamic_threats(dynamic_threat_params)
-    # print("dynamic threats updated", plane_mpc.dynamic_threat_params)
-    # plane_mpc.init_optimization_problem()
-    # solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)    
-
-    # fig,ax = plt.subplots(1, figsize=(10,10))
-    # #plot as time gradient
-    # time_color = np.linspace(0, 1, mpc_params['N']+1)
-    # ax.scatter(solution_results['x'], solution_results['y'], c=time_color, cmap='viridis', marker='x', 
-    #         label='Plane trajectory')
-    
-    # for i, threat in enumerate(dynamic_threats):
-    #     ax.scatter(threat.x_traj, threat.y_traj, c=time_color, cmap='viridis', marker='o', 
-    #             label='Threat trajectory'+str(i))
-        
-    # #show color bar
-    # cbar = plt.colorbar(ax.scatter(solution_results['x'], solution_results['y'], c=time_color, cmap='viridis', marker='x'))
-    # ax.set_xlabel('X')
-    # ax.set_ylabel('Y')
-    # ax.legend()
     plt.show()
+    
 #%% PEW PEW
 elif USE_PEW_PEW:
         
@@ -338,7 +319,7 @@ elif USE_PEW_PEW:
             }
     
     obs_avoid_params = {
-        'weight': 1E-6,
+        'weight': 1E-3,
         'safe_distance': 0.5,
         'x': [],
         'y': [],

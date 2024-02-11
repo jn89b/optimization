@@ -30,6 +30,7 @@ class Threat():
         self.threat_params = threat_params
         self.threat_velocity = threat_params['velocity'] #m/s
         self.threat_type = threat_params['type'] #holonomic or non-holonomic
+        self.safe_distance = threat_params['safe_distance'] #meters
         
         
         #check to make sure we both don't use 2D and 3D

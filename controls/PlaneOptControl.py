@@ -130,7 +130,7 @@ class PlaneOptControl(OptimalControlProblem):
                         (y_pos[i] - threat_y_traj[idx])**2)
                     #avoid division by zero
                     #check if the distance vector has any negative values
-                    threat_radii = 5.0
+                    threat_radii = threat.safe_distance
                     ca.if_else(distance>threat_radii, 1, distance)
                     #get unit vector of ego vehicle
                     u_x = ca.cos(psi[i])
