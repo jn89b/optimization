@@ -19,8 +19,8 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
     return fig,ax 
 
 mpc_params = {
-    'N': 15,
-    'Q': ca.diag([0.1, 0.1, 0.0, 0, 0, 0]),
+    'N': 30,
+    'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0]),
     'R': ca.diag([0, 0, 0, 0]),
     'dt': 0.1
 }
@@ -70,21 +70,20 @@ state_indices = {
     'airspeed': 6    
 }
 
-init_states = np.array([6, #x 
-                        6, #y
+init_states = np.array([1, #x 
+                        1, #y
                         0, #z
                         0, #phi
                         0, #theta
                         np.deg2rad(45), #psi# 3  #airspeed
                         ]) 
 
-final_states = np.array([8, #x
-                         8, #y
+final_states = np.array([15, #x
+                         15, #y
                          0, #z
                          0,  #phi
                          0,  #theta
                          0,  #psi
-                        #  3   #airspeed
                          ]) 
 
 init_controls = np.array([0, 
@@ -99,8 +98,8 @@ plane.set_state_space()
 
 USE_BASIC = False
 USE_OBS_AVOID = False
-USE_DYNAMIC_THREATS = False
-USE_PEW_PEW = True
+USE_DYNAMIC_THREATS = True
+USE_PEW_PEW = False
 plt.close('all')
 
 #%% Use the basic MPC
@@ -156,7 +155,7 @@ elif USE_OBS_AVOID:
 #%% DYNAMIC THREATS
 elif USE_DYNAMIC_THREATS:
     num_dynamic_threats = 1
-    threat_weight = 1E-3
+    threat_weight = 1E-1
     dynamic_threats = []
     threat_x_positions = [5] #[2, 0]
     threat_y_positions = [0] #[0, 5]
@@ -334,9 +333,17 @@ elif USE_PEW_PEW:
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1.0, 
+            'weight': 0.0, 
             'radius_target': 0.5
             }
+    
+    obs_avoid_params = {
+        'weight': 1E-6,
+        'safe_distance': 0.5,
+        'x': [],
+        'y': [],
+        'radii': []
+    }
     
     plane_mpc = PlaneOptControl(
         control_constraints, 
@@ -344,7 +351,9 @@ elif USE_PEW_PEW:
         mpc_params, 
         plane,
         use_pew_pew=True,
-        pew_pew_params=effector_config
+        pew_pew_params=effector_config,
+        use_obstacle_avoidance=True,
+        obs_params=obs_avoid_params
     )
     
     plane_mpc.init_optimization_problem()

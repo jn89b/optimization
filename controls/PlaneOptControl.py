@@ -141,6 +141,7 @@ class PlaneOptControl(OptimalControlProblem):
                     
                     #calculate the dot product of the unit vectors
                     dot_product = (u_x * u_x_t) + (u_y * u_y_t)
+                    dot_product_scale = (dot_product*0.5) + 0.5
                     
                     #if the value of the difference becomes positive that means we are in danger
                     #this will set the distance cost to 1, which is a full penalty
@@ -148,7 +149,7 @@ class PlaneOptControl(OptimalControlProblem):
                     
                     #this distance cost mathematically should never be greater than 1 
                     distance_cost = 1/distance        
-                    threat_cost +=  dot_product + distance_cost
+                    threat_cost +=  distance_cost + dot_product_scale
                     
             total_threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(threat_cost)
         
@@ -201,6 +202,12 @@ class PlaneOptControl(OptimalControlProblem):
             effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
             #put a negative since we want to minimize the cost, so just flip the sign
             effector_cost += within_range * within_fov* -effector_dmg
+
+            safe_distance = self.obs_params['safe_distance']
+            diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
+            #obstacle_distance = 1/obstacle_distance
+            #avoidance_cost += ca.sum2(diff)
+            self.g = ca.vertcat(self.g, diff)
         
         total_effector_cost = self.pew_pew_params['weight'] * ca.sumsqr(effector_cost)
         
@@ -237,16 +244,28 @@ class PlaneOptControl(OptimalControlProblem):
         
         if self.use_obstacle_avoidance:
             # constraints lower bound added 
-            num_obstacles = len(self.obs_params['x'])
-            num_constraints = num_obstacles * self.N
-            lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
-            # -infinity to minimum marign value for obs avoidance  
-            lbg[n_states*self.N+n_states:] = -ca.inf 
-            
-            # constraints upper bound
-            ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
-            #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
-            ubg[n_states*self.N+n_states:] = 0
+            if self.use_pew_pew:
+                print('Using pew pew with obstacle avoidance')
+                num_obstacles = len(self.obs_params['x']) + 1
+                num_constraints = num_obstacles * self.N
+                lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
+                # -infinity to minimum marign value for obs avoidance  
+                lbg[n_states*self.N+n_states:] = -ca.inf                 
+                # constraints upper bound
+                ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
+                #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
+                ubg[n_states*self.N+n_states:] = 0
+            else:
+                num_obstacles = len(self.obs_params['x'])
+                num_constraints = num_obstacles * self.N
+                lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
+                # -infinity to minimum marign value for obs avoidance  
+                lbg[n_states*self.N+n_states:] = -ca.inf 
+                
+                # constraints upper bound
+                ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
+                #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
+                ubg[n_states*self.N+n_states:] = 0
         else:
             lbg = ca.DM.zeros((n_states*(self.N+1), 1))
             ubg  =  ca.DM.zeros((n_states*(self.N+1), 1))
