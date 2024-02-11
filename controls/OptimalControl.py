@@ -88,7 +88,7 @@ class OptimalControlProblem():
             controls = self.U[:, k]
             
             cost += cost \
-                    + (states - P[n_states:]).T @ Q @ (states - P[n_states:]) \
+                    + (states - x_final).T @ Q @ (states - x_final) \
                     #+ controls.T @ R @ controls        
         
         #add terminal cost

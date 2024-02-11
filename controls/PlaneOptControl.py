@@ -1,4 +1,5 @@
 from controls.OptimalControl import OptimalControlProblem
+from controls.Effector import Effector
 import casadi as ca
 import numpy  as np
 
@@ -11,7 +12,9 @@ class PlaneOptControl(OptimalControlProblem):
                  use_obstacle_avoidance:bool=False,
                  obs_params:dict=None,
                  use_dynamic_threats:bool=False,
-                 dynamic_threat_params:dict=None) -> None:
+                 dynamic_threat_params:dict=None, 
+                 use_pew_pew:bool=False,
+                 pew_pew_params:dict=None) -> None:
         
         super().__init__(mpc_params, casadi_model)
         self.control_constraints = control_constraints
@@ -25,7 +28,13 @@ class PlaneOptControl(OptimalControlProblem):
         self.use_dynamic_threats = use_dynamic_threats
         self.dynamic_threat_params = dynamic_threat_params
         
-        self.is_initialized = False  
+        self.Effector = None
+        self.use_pew_pew = use_pew_pew
+        self.pew_pew_params = pew_pew_params
+        if self.use_pew_pew:
+            self.Effector = Effector(self.pew_pew_params, use_casadi=True)
+            
+        self.is_initialized = False
         
     def update_bound_constraints(self) -> None:
         #add control constraints
@@ -101,22 +110,26 @@ class PlaneOptControl(OptimalControlProblem):
             if len(threat_x_traj) != self.N+1:
                 raise ValueError('Threat trajectory must be the same length as the ego vehicle', 
                                  len(threat_x_traj), self.N+1)
+        
+            if 'time_index' not in self.dynamic_threat_params:
+                raise ValueError('Time index not found in dynamic threat parameters')
             
-            time_index = 1
+            time_index_check = self.dynamic_threat_params['time_index']
             
             for i in range(self.N):
                 
-                for j in range(time_index):
+                for j in range(time_index_check):
                     idx = j + i
                     if idx > self.N:
                         break
+                    
                     #calculate the distance between the ego vehicle and the threat
                     distance = ca.sqrt((x_pos[i] - threat_x_traj[idx])**2 + \
                         (y_pos[i] - threat_y_traj[idx])**2)
                     #avoid division by zero
                     #check if the distance vector has any negative values
-                    # ca.if_else(distance>0, 1, distance)
-                    
+                    threat_radii = 5.0
+                    ca.if_else(distance>threat_radii, 1, distance)
                     #get unit vector of ego vehicle
                     u_x = ca.cos(psi[i])
                     u_y = ca.sin(psi[i])
@@ -128,41 +141,53 @@ class PlaneOptControl(OptimalControlProblem):
                     dot_product = (u_x * u_x_t) + (u_y * u_y_t)
                     
                     #if the value of the difference becomes positive that means we are in danger
-                    # ca.if_else(distance<threat_radii, 1, distance)
-                    distance_cost = 1/distance
-
-                    #add the cost to the total cost
-                    # threat_cost += self.dynamic_threat_params['weight'] * ca.sumsqr(distance_cost) + \
-                    #     self.dynamic_threat_params['weight'] * ca.sumsqr(dot_product)
-                    threat_cost +=  dot_product
+                    #this will set the distance cost to 1, which is a full penalty
+                    ca.if_else(distance<threat_radii, 1, distance)
+                    
+                    #this distance cost mathematically should never be greater than 1 
+                    distance_cost = 1/distance        
+                    threat_cost +=  dot_product + distance_cost
                     
             total_threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(threat_cost)
+        
+        return total_threat_cost
 
-            # distance = ca.sqrt((x_pos.T - threat_x_traj)**2 + \
-            #     (y_pos.T - threat_y_traj)**2)
-
-
-            # # distance = ca.sqrt((x_pos.T - threat_x_traj)**2 + \
-            # #     (y_pos.T - threat_y_traj))**2
-            # threat_radii = 5.0
-            # safe_distance =  1.0
-            # #avoid division by zero
-            # #check if the distance vector has any negative values
-            # ca.if_else(distance>threat_radii, 1, distance)
-                    
-            # #if the value of the difference bec
-            # # omes positive that means we are in danger
-            # #distance_cost = -distance + threat_radii + safe_distance
-            # distance_cost = 1/distance
+    def compute_pew_pew_cost(self) -> ca.SX:
+        if self.Effector is None:
+            raise ValueError('Effector not initialized')
+        
+        n_states = self.model_casadi.n_states
+        target_location = self.P[n_states:]
+        
+        total_effector_cost = 0
+        effector_cost = 0
+        for i in range(self.N):
+            x_pos = self.X[0, i]
+            y_pos = self.X[1, i]
+            z_pos = self.X[2, i]
+            roll  = self.X[3, i]
+            pitch = self.X[4, i]
+            yaw   = self.X[5, i]
             
-
-            # #add the cost to the total cost
-            # threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(distance_cost) 
-                 
-            # cost += threat_cost
+            dtarget = ca.sqrt((x_pos - target_location[0])**2 + \
+                (y_pos - target_location[1])**2 + \
+                (z_pos - target_location[2])**2)
             
-        return threat_cost
-    
+            #convert x_pos, y_pos, z_pos to a 3D vector
+            ref_point = ca.horzcat(x_pos, y_pos, z_pos)
+            self.Effector.set_effector_location3d(ref_point, roll ,
+                                                  pitch, yaw)
+            
+            #this is to multiply the value if the target is within the effector range
+            in_value = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
+            effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
+            #put a negative since we want to minimize the cost, so just flip the sign
+            effector_cost += in_value * -effector_dmg
+        
+        total_effector_cost = self.pew_pew_params['weight'] * ca.sumsqr(effector_cost)
+        
+        return total_effector_cost
+            
     def compute_total_cost(self) -> ca.SX:
         self.cost += self.compute_dynamics_cost()
         if self.use_obstacle_avoidance:
@@ -173,6 +198,11 @@ class PlaneOptControl(OptimalControlProblem):
             print('Using dynamic threats')
             self.cost += self.compute_dynamic_threats_cost(self.cost)
             # self.cost +=self.cost            
+        
+        if self.use_pew_pew:
+            print('Using pew pew')
+            self.cost += self.compute_pew_pew_cost()
+                
         return self.cost
 
     def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:

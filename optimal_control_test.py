@@ -8,10 +8,19 @@ from models.Plane import Plane
 from drone_control.Threat import Threat
 from controls.PlaneOptControl import PlaneOptControl
 
+def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
+    #plot controls
+    fig,ax = plt.subplots(nrows=n_controls, figsize=(10,10))
+    ax[0].plot(time_list[:-1], solution['u_phi'], 'r')
+    ax[1].plot(time_list[:-1], solution['u_theta'], 'g')
+    ax[2].plot(time_list[:-1], solution['u_psi'], 'b')
+    ax[3].plot(time_list[:-1], solution['v_cmd'], 'k')
+    
+    return fig,ax 
 
 mpc_params = {
     'N': 20,
-    'Q': ca.diag([0.1, 0.1, 0.0, 0, 0, 0]),
+    'Q': ca.diag([1E-1, 1E-1, 0.0, 0, 0, 0]),
     'R': ca.diag([0, 0, 0, 0]),
     'dt': 0.1
 }
@@ -69,8 +78,8 @@ init_states = np.array([1, #x
                         np.deg2rad(90), #psi# 3  #airspeed
                         ]) 
 
-final_states = np.array([10, #x
-                         10, #y
+final_states = np.array([8, #x
+                         8, #y
                          0, #z
                          0,  #phi
                          0,  #theta
@@ -90,8 +99,8 @@ plane.set_state_space()
 
 USE_BASIC = False
 USE_OBS_AVOID = False
-USE_DYNAMIC_THREATS = True
-USE_PEW_PEW = False
+USE_DYNAMIC_THREATS = False
+USE_PEW_PEW = True
 plt.close('all')
 
 #%% Use the basic MPC
@@ -147,7 +156,7 @@ elif USE_OBS_AVOID:
 #%% DYNAMIC THREATS
 elif USE_DYNAMIC_THREATS:
     num_dynamic_threats = 1
-    threat_weight = 1
+    threat_weight = 1E-3
     dynamic_threats = []
     threat_x_positions = [5] #[2, 0]
     threat_y_positions = [0] #[0, 5]
@@ -207,6 +216,7 @@ elif USE_DYNAMIC_THREATS:
         'threats':dynamic_threats, 
         'num_dynamic_threats':num_dynamic_threats,
         'weight': threat_weight,
+        'time_index' : 5
     }    
 
     plane_mpc = PlaneOptControl(
@@ -291,6 +301,7 @@ elif USE_DYNAMIC_THREATS:
         'threats':dynamic_threats, 
         'num_dynamic_threats':num_dynamic_threats,
         'weight': threat_weight,
+        'time_index': 5 #check the other time indicies 
     }    
     
     # plane_mpc.update_dynamic_threats(dynamic_threat_params)
@@ -313,9 +324,40 @@ elif USE_DYNAMIC_THREATS:
     # ax.set_xlabel('X')
     # ax.set_ylabel('Y')
     # ax.legend()
-    
-    
     plt.show()
 #%% PEW PEW
 elif USE_PEW_PEW:
-    pass
+    
+    effector_config = {
+            'effector_range': 3, 
+            'effector_power': 1, 
+            'effector_type': 'directional_3d', 
+            'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
+            'weight': 10
+            }
+    
+    plane_mpc = PlaneOptControl(
+        control_constraints, 
+        state_constraints, 
+        mpc_params, 
+        plane,
+        use_pew_pew=True,
+        pew_pew_params=effector_config
+    )
+    
+    plane_mpc.init_optimization_problem()
+    solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
+    
+    fig,ax = plt.subplots(1, figsize=(10,10))
+    ax.plot(solution_results['x'], solution_results['y'], 'r')
+    #plot the goal position
+    ax.scatter(final_states[0], final_states[1], marker='x', color='b')
+    
+    
+    #plot the controls
+    time_vec = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)
+    plot_controls(solution_results, time_vec, plane.n_controls)
+    
+    
+    plt.show()
+    
