@@ -71,8 +71,8 @@ class PlaneOptControl(OptimalControlProblem):
         x_position = self.X[0,:]
         y_position = self.X[1,:]
         
+        total_avoidance_cost = 0
         avoidance_cost = 0
-        
         for i,x in enumerate(obs_x_vector):
             obs_x = obs_x_vector[i]
             obs_y = obs_y_vector[i]
@@ -82,12 +82,14 @@ class PlaneOptControl(OptimalControlProblem):
                 (obs_y - y_position)**2)
             diff = obstacle_distance + obs_radii + safe_distance
             #obstacle_distance = 1/obstacle_distance
-            avoidance_cost += obs_avoid_weight * ca.sum2(diff)
+            avoidance_cost += ca.sum2(diff)
             
             self.g = ca.vertcat(self.g, diff[:-1].T)
         
+        total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
+        
         print('Obstacle avoidance cost computed')
-        return avoidance_cost
+        return total_avoidance_cost
     
     def compute_dynamic_threats_cost(self, cost:float) -> None:
         #ego vehicle

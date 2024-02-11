@@ -327,7 +327,7 @@ elif USE_DYNAMIC_THREATS:
     plt.show()
 #%% PEW PEW
 elif USE_PEW_PEW:
-    
+        
     effector_config = {
             'effector_range': 3, 
             'effector_power': 1, 
@@ -352,12 +352,10 @@ elif USE_PEW_PEW:
     ax.plot(solution_results['x'], solution_results['y'], 'r')
     #plot the goal position
     ax.scatter(final_states[0], final_states[1], marker='x', color='b')
-    
-    
+
     #plot the controls
     time_vec = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)
     plot_controls(solution_results, time_vec, plane.n_controls)
-    
-    
+        
     plt.show()
     
