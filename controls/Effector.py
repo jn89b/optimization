@@ -87,7 +87,7 @@ class Effector():
             self.effector_location[1,:] + ref_point
             
             self.effector_location = ca.vertcat(self.effector_location, ref_point)
-            print("effector final shape is", self.effector_location.shape)
+            # print("effector final shape is", self.effector_location.shape)
         else:
             self.effector_location = (rot.rot3d(ref_roll,ref_pitch, ref_yaw) @ \
                 np.transpose(self.effector_profile)).T + ref_point

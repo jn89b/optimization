@@ -160,6 +160,7 @@ class PlaneOptControl(OptimalControlProblem):
         
         n_states = self.model_casadi.n_states
         target_location = self.P[n_states:]
+
         
         total_effector_cost = 0
         effector_cost = 0
@@ -170,10 +171,22 @@ class PlaneOptControl(OptimalControlProblem):
             roll  = self.X[3, i]
             pitch = self.X[4, i]
             yaw   = self.X[5, i]
+
+            #get the unit vector of the ego vehicle
+            unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw), 0)
+
+            dx = x_pos - target_location[0]
+            dy = y_pos - target_location[1]
+            dz = z_pos - target_location[2]
+                        
+            dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
+            los_target = ca.vertcat(dx, dy, dz)
             
-            dtarget = ca.sqrt((x_pos - target_location[0])**2 + \
-                (y_pos - target_location[1])**2 + \
-                (z_pos - target_location[2])**2)
+            #take dot product of the line of sight vector and the target vector
+            #we want to be as aligned to the target so the value would be one
+            #we add a negative sign to flip the value since we are minimizing 
+            dot_product = -ca.dot(los_target, unit_vector)
+            
             
             #convert x_pos, y_pos, z_pos to a 3D vector
             ref_point = ca.horzcat(x_pos, y_pos, z_pos)
@@ -181,10 +194,13 @@ class PlaneOptControl(OptimalControlProblem):
                                                   pitch, yaw)
             
             #this is to multiply the value if the target is within the effector range
-            in_value = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
+            within_range = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
+            within_fov = ca.if_else(dot_product > 0, 1, 0)
+
+            
             effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
             #put a negative since we want to minimize the cost, so just flip the sign
-            effector_cost += in_value * -effector_dmg
+            effector_cost += within_range * within_fov* -effector_dmg
         
         total_effector_cost = self.pew_pew_params['weight'] * ca.sumsqr(effector_cost)
         
@@ -328,6 +344,7 @@ class PlaneOptControl(OptimalControlProblem):
         self.init_solver(self.cost)
         self.is_initialized = True
         print('Dynamic threats updated')
+        
     
     
     

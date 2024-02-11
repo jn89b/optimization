@@ -19,8 +19,8 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
     return fig,ax 
 
 mpc_params = {
-    'N': 20,
-    'Q': ca.diag([1E-1, 1E-1, 0.0, 0, 0, 0]),
+    'N': 15,
+    'Q': ca.diag([0.1, 0.1, 0.0, 0, 0, 0]),
     'R': ca.diag([0, 0, 0, 0]),
     'dt': 0.1
 }
@@ -70,12 +70,12 @@ state_indices = {
     'airspeed': 6    
 }
 
-init_states = np.array([1, #x 
-                        1, #y
+init_states = np.array([6, #x 
+                        6, #y
                         0, #z
                         0, #phi
                         0, #theta
-                        np.deg2rad(90), #psi# 3  #airspeed
+                        np.deg2rad(45), #psi# 3  #airspeed
                         ]) 
 
 final_states = np.array([8, #x
@@ -123,7 +123,7 @@ elif USE_OBS_AVOID:
 
     obs_avoid_params = {
         'weight': 1E-6,
-        'safe_distance': 0.1,
+        'safe_distance': 0.5,
         'x': obs_x,
         'y': obs_y,
         'radii': random_radii
@@ -297,6 +297,7 @@ elif USE_DYNAMIC_THREATS:
         
         dynamic_threats.append(threat)
     
+    
     dynamic_threat_params = {
         'threats':dynamic_threats, 
         'num_dynamic_threats':num_dynamic_threats,
@@ -329,11 +330,12 @@ elif USE_DYNAMIC_THREATS:
 elif USE_PEW_PEW:
         
     effector_config = {
-            'effector_range': 3, 
+            'effector_range': 10, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 10
+            'weight': 1.0, 
+            'radius_target': 0.5
             }
     
     plane_mpc = PlaneOptControl(
@@ -358,4 +360,3 @@ elif USE_PEW_PEW:
     plot_controls(solution_results, time_vec, plane.n_controls)
         
     plt.show()
-    
