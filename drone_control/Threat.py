@@ -115,7 +115,7 @@ class Threat():
             for i in range(num_points+1):
                 position = self.simulate_dynamics(
                     start_position, controls, dt)
-                position[2] = wrap_radian_angle(position[2])
+                # position[2] = wrap_radian_angle(position[2])
 
                 x_traj.append(position[0])
                 y_traj.append(position[1])

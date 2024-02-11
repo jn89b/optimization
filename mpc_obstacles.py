@@ -195,7 +195,7 @@ if USE_DYNAMIC_THREAT:
     
     num_dynamic_threats = 1 
     dynamic_threats = []
-    threat_x_positions = [2]
+    threat_x_positions = [5]
     threat_y_positions = [0]
     final_position = np.array([10, 10, np.deg2rad(225)])
     for i in range(num_dynamic_threats):
@@ -231,8 +231,7 @@ if USE_DYNAMIC_THREAT:
             threat.straight_line_3D(final_position, mpc_params['N'], mpc_params['dt'])
         
         dynamic_threats.append(threat)
-        
-    
+
     # threat_position = np.array([3, 2, np.deg2rad(225)])
     
     # #compute los from start to end 
@@ -257,7 +256,6 @@ if USE_DYNAMIC_THREAT:
     #                               'num_points':mpc_params['N']},
     #                 threat_params=threat_params,
     #                 use_2D=True)
-
     
     # if threat.use_2D:
     #     threat.straight_line_2D(final_position, mpc_params['N'], mpc_params['dt'])
@@ -270,7 +268,7 @@ if USE_DYNAMIC_THREAT:
     dynamic_threat_params = {
         'threats':dynamic_threats, 
         'num_dynamic_threats':num_dynamic_threats,
-        'weight': 50,
+        'weight': 5,
     }
 
     mpc_controller = PlaneMPC(mpc_params, 
@@ -296,18 +294,23 @@ if USE_DYNAMIC_THREAT:
     fig,ax = plt.subplots(1, figsize=(10,10))
     #plot as time gradient
     time_color = np.linspace(0, 1, mpc_params['N']+1)
-    ax.scatter(state_dict['x_dot'], state_dict['y_dot'], c=time_color, cmap='viridis', marker='x', 
+    ax.scatter(state_dict['x_dot'], state_dict['y_dot'], c=time_color, 
+               cmap='viridis', marker='x', 
                label='Plane trajectory')
     
     for i, threat in enumerate(dynamic_threats):
-        ax.scatter(threat.x_traj, threat.y_traj, c=time_color, cmap='viridis', marker='o', 
+        ax.scatter(threat.x_traj, threat.y_traj, c=time_color, 
+                   cmap='viridis', marker='o', 
                    label='Threat trajectory'+str(i))
         
     # ax.scatter(threat.x_traj, threat.y_traj, c=time_color, cmap='viridis', marker='o', 
     #            label='Threat trajectory')
 
     #show color bar
-    cbar = plt.colorbar(ax.scatter(state_dict['x_dot'], state_dict['y_dot'], c=time_color, cmap='viridis', marker='x'))
+    cbar = plt.colorbar(ax.scatter(state_dict['x_dot'], 
+                                   state_dict['y_dot'], 
+                                   c=time_color, 
+                                   cmap='viridis', marker='x'))
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.legend()

@@ -209,10 +209,7 @@ class PlaneMPC(OptiCasadi):
    
             threat_radii = 1.0 
             safe_distance = 1
-            # self.opti.subject_to(threat_constraints >= \
-            #     threat_constraints + threat_radii + safe_distance)
             
-            # self.opti.set_value(threat_parameter, distance)
             
             #add the cost to the total cost
             threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(distance_cost)

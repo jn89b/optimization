@@ -10,7 +10,7 @@ class OptimalControlProblem():
         self.R = self.mpc_params['R']
         self.dt = self.mpc_params['dt']
         self.model_casadi = model_casadi
-        
+        self.g = []        
         self.init_decision_variables()
         self.define_bound_constraints()
         self.set_dynamic_constraints()
@@ -61,7 +61,6 @@ class OptimalControlProblem():
     def set_dynamic_constraints(self) -> None:
         #dynamic constraints
         #equality constraint for initial condition
-        self.g = []
         
         self.g = self.X[:, 0] - self.P[:self.model_casadi.n_states]                  
         for k in range(self.N):
@@ -90,7 +89,7 @@ class OptimalControlProblem():
             
             cost += cost \
                     + (states - P[n_states:]).T @ Q @ (states - P[n_states:]) \
-                    + controls.T @ R @ controls        
+                    #+ controls.T @ R @ controls        
         
         #add terminal cost
         # cost += (self.X[:, self.N] - x_final).T @ Q @ (self.X[:, self.N] - x_final)
@@ -115,7 +114,7 @@ class OptimalControlProblem():
         solver_opts = {
             'ipopt': {
                 # 'max_iter': 500,
-                # 'print_level': 0,
+                'print_level': 0,
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,
                 # 'linear_solver': 'ma27',
@@ -131,7 +130,10 @@ class OptimalControlProblem():
         print('Solver initialized')
         
     def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:
-        """solve the optimal control problem"""
+        """
+        solve the optimal control problem
+        Woudl be nice to wrap this into a solver
+        """
         
         state_init = ca.DM(x0)
         state_final = ca.DM(xF)
