@@ -3,7 +3,6 @@ import numpy as np
 import casadi as ca
 
 from matplotlib import pyplot as plt
-
 from models.Plane import Plane
 from drone_control.Threat import Threat
 from controls.PlaneOptControl import PlaneOptControl
@@ -11,17 +10,28 @@ from controls.PlaneOptControl import PlaneOptControl
 def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
     #plot controls
     fig,ax = plt.subplots(nrows=n_controls, figsize=(10,10))
-    ax[0].plot(time_list[:-1], solution['u_phi'], 'r')
-    ax[1].plot(time_list[:-1], solution['u_theta'], 'g')
-    ax[2].plot(time_list[:-1], solution['u_psi'], 'b')
-    ax[3].plot(time_list[:-1], solution['v_cmd'], 'k')
+    u_phi = np.rad2deg(solution['u_phi'])
+    u_theta = np.rad2deg(solution['u_theta'])
+    u_psi = np.rad2deg(solution['u_psi'])
+    v_cmd = solution['v_cmd']
+    
+    ax[0].plot(time_list[:-1], u_phi, 'r', label='u_phi')
+    ax[1].plot(time_list[:-1], u_theta, 'g', label='u_theta')
+    ax[2].plot(time_list[:-1], u_psi, 'b', label='u_psi'), 
+    ax[3].plot(time_list[:-1], v_cmd, 'k', label='v_cmd')
+
+    for ax in ax:
+        ax.set_ylabel('Control')
+        ax.set_xlabel('Time (s)')
+        ax.legend()
+        ax.grid()
     
     return fig,ax 
 
 mpc_params = {
     'N': 30,
-    'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0]),
-    'R': ca.diag([0, 0, 0, 0.0]),
+    'Q': ca.diag([0.0, 0.0, 0, 0, 0, 0.0]),
+    'R': ca.diag([0, 0, 0, 0.1]),
     'dt': 0.1
 }
 
@@ -70,8 +80,8 @@ state_indices = {
     'airspeed': 6    
 }
 
-init_states = np.array([2, #x 
-                        2, #y
+init_states = np.array([0, #x 
+                        0, #y
                         0, #z
                         0, #phi
                         0, #theta
@@ -89,9 +99,7 @@ final_states = np.array([10, #x
 init_controls = np.array([0, 
                           0, 
                           0, 
-                          control_constraints['v_cmd_max']])
-
-
+                          (control_constraints['v_cmd_max']+control_constraints['v_cmd_min'])/2])
 
 plane = Plane()
 plane.set_state_space()
@@ -101,6 +109,8 @@ USE_OBS_AVOID = False
 USE_DYNAMIC_THREATS = False
 USE_PEW_PEW = True
 plt.close('all')
+seed_number = 0
+np.random.seed(seed_number)
 
 #%% Use the basic MPC
 if USE_BASIC:
@@ -310,17 +320,17 @@ elif USE_DYNAMIC_THREATS:
 elif USE_PEW_PEW:
         
     effector_config = {
-            'effector_range': 10, 
+            'effector_range': 4, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1E-6, 
+            'weight': 1E-1, 
             'radius_target': 0.5
             }
     
     obs_avoid_params = {
-        'weight': 1E-6,
-        'safe_distance': 0.1,
+        'weight': 1E-10,
+        'safe_distance': 1.0,
         'x': [],
         'y': [],
         'radii': []
@@ -341,9 +351,9 @@ elif USE_PEW_PEW:
     solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
     
     fig,ax = plt.subplots(1, figsize=(10,10))
+    ax.scatter(final_states[0], final_states[1], marker='x', color='b')
     ax.plot(solution_results['x'], solution_results['y'], 'r')
     #plot the goal position
-    ax.scatter(final_states[0], final_states[1], marker='x', color='b')
 
     #plot the controls
     time_vec = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)

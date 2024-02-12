@@ -165,6 +165,7 @@ class PlaneOptControl(OptimalControlProblem):
         
         total_effector_cost = 0
         effector_cost = 0
+        acceleration_cost = 0 
         for i in range(self.N):
             x_pos = self.X[0, i]
             y_pos = self.X[1, i]
@@ -173,6 +174,12 @@ class PlaneOptControl(OptimalControlProblem):
             pitch = self.X[4, i]
             yaw   = self.X[5, i]
             v_cmd = self.U[3, i]
+
+            if i == self.N-1:
+                v_cmd_next = self.U[3, i]
+            else:
+                v_cmd_next = self.U[3, i+1]
+            
 
             #get the unit vector of the ego vehicle
             unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw), 0)
@@ -189,23 +196,29 @@ class PlaneOptControl(OptimalControlProblem):
             #we add a negative sign to flip the value since we are minimizing 
             dot_product = -ca.dot(los_target, unit_vector)
             
+            
+            #slow down cost  
+            acceleration = (v_cmd_next - v_cmd) #/ dtarget
+            acceleration_cost += acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
+                        
             #get the current control for the velocity command to relate it to time on target
             #the slower we go the longer we stay on target
             #invert this to minimize
-            time_on_target = -dtarget/v_cmd
+            # time_on_target = -dtarget/v_cmd
         
             #convert x_pos, y_pos, z_pos to a 3D vector
-            ref_point = ca.horzcat(x_pos, y_pos, z_pos)
-            self.Effector.set_effector_location3d(ref_point, roll ,
-                                                  pitch, yaw)
+            # ref_point = ca.horzcat(x_pos, y_pos, z_pos)
+            # self.Effector.set_effector_location3d(ref_point, roll ,
+            #                                       pitch, yaw)
             
             #this is to multiply the value if the target is within the effector range
             within_range = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
             within_fov = ca.if_else(dot_product > 0, 1, 0)
-
-            effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
+            
+            #effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
+            # effector_dmg = dtarget
             #put a negative since we want to minimize the cost, so just flip the sign
-            effector_cost += within_range * within_fov* (-effector_dmg * time_on_target)
+            effector_cost += (within_range * within_fov* (acceleration_cost))#(-effector_dmg * time_on_target)
 
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
