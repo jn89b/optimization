@@ -9,6 +9,33 @@ class DataVisualizer():
     def __init__(self) -> None:
         pass
     
+    @staticmethod
+    def plot_states(solution:dict, time_list:np.ndarray, n_states:int) -> tuple:
+        #plot states
+        fig,ax = plt.subplots(nrows=n_states, figsize=(10,10))
+        x = solution['x']
+        y = solution['y']
+        z = solution['z']
+        phi = np.rad2deg(solution['phi'])
+        theta = np.rad2deg(solution['theta'])
+        psi = np.rad2deg(solution['psi'])
+        v = solution['v']
+        
+        ax[0].plot(time_list, x, 'r', label='x')
+        ax[1].plot(time_list, y, 'g', label='y')
+        ax[2].plot(time_list, z, 'b', label='z')
+        ax[3].plot(time_list, phi, 'k', label='phi')
+        ax[4].plot(time_list, theta, 'm', label='theta')
+        ax[5].plot(time_list, psi, 'c', label='psi')
+        ax[6].plot(time_list, v, 'y', label='v')
+
+        for ax in ax:
+            ax.set_ylabel('State')
+            ax.set_xlabel('Time (s)')
+            ax.legend()
+            ax.grid()
+        
+        return fig,ax
     
     @staticmethod
     def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int) -> tuple:
@@ -107,7 +134,7 @@ class DataVisualizer():
                         z_low:float=0, z_high:float=10,
                         num_points:int=20,
                         color_obs:str='b',
-                        alpha_val:float=0.4) -> tuple:
+                        alpha_val:float=0.4):
         """
         Plot as a cylinder
         """

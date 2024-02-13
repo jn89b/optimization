@@ -27,16 +27,16 @@ class Effector():
         self.effector_power = effector_config['effector_power'] #watts
     
         if effector_config['effector_type'] == 'directional':
-            self.effector_type = 'triangle'
+            self.effector_type = 'directional'
             self.effector_angle = effector_config['effector_angle']
             self.effector_profile = create_triangle(self.effector_angle, self.effector_range)
 
         elif effector_config['effector_type'] == 'omnidirectional':
-            self.effector_type = 'circle'
+            self.effector_type = 'omnidirectional'
             self.effector_angle = 2*np.pi
 
-        if effector_config['effector_type'] == 'directional_3d':
-            self.effector_type = 'triangle'
+        elif effector_config['effector_type'] == 'directional_3d':
+            self.effector_type = 'directional_3d'
             self.effector_angle = effector_config['effector_angle']
             self.effector_profile = create_pyramid(self.effector_angle, self.effector_range)    
         
@@ -101,10 +101,10 @@ class Effector():
         
         #check if using casadi 
         if self.use_casadi == True:
-            if self.effector_type == 'triangle':
+            if self.effector_type == 'directional' or self.effector_type == 'directional_3d':
                 return effector_factor * self.effector_power / (target_distance**2 * 4*ca.pi)
             
-            elif self.effector_type == 'circle':
+            elif self.effector_type == 'omnidirectional':
                 return self.effector_power / (target_distance**2 * 4*ca.pi)
             
             else:
@@ -112,10 +112,10 @@ class Effector():
 
         #if not using casadi
         else:
-            if self.effector_type == 'triangle':
+            if self.effector_type == 'directional' or self.effector_type == 'directional_3d':
                 return self.effector_power / (target_distance**2 * 4*np.pi)
 
-            elif self.effector_type == 'circle':
+            elif self.effector_type == 'omnidirectional':
                 return self.effector_power / (target_distance**2 * 4*np.pi)
 
             else:

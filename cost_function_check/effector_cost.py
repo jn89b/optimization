@@ -15,7 +15,7 @@ velocity_penalty = 1 + (cost_fn_one/1)
 
 #plt.plot(dtarget, cost_fn_one, 'r', label='1 - exp(d/effector_range)')
 plt.plot(dtarget, cost_fn_one, 'r', label='exp(d/effector_range)')
-plt.plot(dtarget, velocity_penalty, 'b', label='Velocity Penalty')
+# plt.plot(dtarget, velocity_penalty, 'b', label='Velocity Penalty')
 # plt.plot(dtarget, cost_fn_two, 'g', label='1 - d/effector_range')
 plt.xlabel('Distance to target')
 plt.ylabel('Cost')

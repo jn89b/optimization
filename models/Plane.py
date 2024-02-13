@@ -25,7 +25,7 @@ class Plane():
         self.phi_f = ca.SX.sym('phi_f')
         self.theta_f = ca.SX.sym('theta_f')
         self.psi_f = ca.SX.sym('psi_f')
-        self.t = ca.SX.sym('t')
+        self.v = ca.SX.sym('t')
 
         if self.include_time:
             self.states = ca.vertcat(
@@ -35,7 +35,7 @@ class Plane():
                 self.phi_f,
                 self.theta_f,
                 self.psi_f, 
-                self.t)
+                self.v)
         else:
             self.states = ca.vertcat(
                 self.x_f,
@@ -43,7 +43,8 @@ class Plane():
                 self.z_f,
                 self.phi_f,
                 self.theta_f,
-                self.psi_f, 
+                self.psi_f,
+                self.v 
             )
 
         self.n_states = self.states.size()[0] #is a column vector 
@@ -66,15 +67,7 @@ class Plane():
     def set_state_space(self):
         """define the state space of your system"""
         self.g = 9.81 #m/s^2
-        #body to inertia frame
-        # self.x_fdot = self.v_cmd * ca.cos(self.theta_f) * ca.cos(self.psi_f) 
-        # self.y_fdot = self.v_cmd * ca.cos(self.theta_f) * ca.sin(self.psi_f)
-        # self.z_fdot = -self.v_cmd * ca.sin(self.theta_f)
-        
-        # self.phi_fdot = self.u_phi
-        # self.theta_fdot = self.u_theta
-        # self.psi_fdot = self.u_psi + (self.g * (ca.tan(self.phi_f) / self.v_cmd))
-
+        #body to inertia frame 
         self.x_fdot = self.v_cmd * ca.cos(self.theta_f) * ca.cos(self.psi_f) 
         self.y_fdot = self.v_cmd * ca.cos(self.theta_f) * ca.sin(self.psi_f)
         self.z_fdot = -self.v_cmd * ca.sin(self.theta_f)
@@ -83,10 +76,11 @@ class Plane():
         self.theta_fdot = self.u_theta
         
         #check if the denominator is zero
-        self.v_cmd = ca.if_else(self.v_cmd == 0, 1e-6, self.v_cmd)
+        # self.v_cmd = ca.if_else(self.v_cmd == 0, 1e-6, self.v_cmd)
+        self.v_dot = ca.sqrt(self.x_fdot**2 + self.y_fdot**2 + self.z_fdot**2)
         self.psi_fdot   = self.u_psi + (self.g * (ca.tan(self.phi_f) / self.v_cmd))
 
-        self.t_dot = self.t 
+        # self.t_dot = self.t 
         
         if self.include_time:
             self.z_dot = ca.vertcat(
@@ -96,7 +90,7 @@ class Plane():
                 self.phi_fdot,
                 self.theta_fdot,
                 self.psi_fdot,
-                self.t_dot
+                self.v_dot
             )
         else:
             self.z_dot = ca.vertcat(
@@ -106,6 +100,7 @@ class Plane():
                 self.phi_fdot,
                 self.theta_fdot,
                 self.psi_fdot,
+                self.v_dot
             )
 
         #ODE function

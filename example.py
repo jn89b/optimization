@@ -2,28 +2,42 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# Cylinder parameters
-radius = 1
-height = 2
-center = [0, 0]  # x, y position of the center
+def plot_torus_and_point(R, r, point):
+    # Generate torus
+    u = np.linspace(0, 2 * np.pi, 100)
+    v = np.linspace(0, 2 * np.pi, 100)
+    u, v = np.meshgrid(u, v)
+    x = (R + r * np.cos(v)) * np.cos(u)
+    y = (R + r * np.cos(v)) * np.sin(u)
+    z = r * np.sin(v)
 
-# Create a grid of points
-theta = np.linspace(0, 2*np.pi, 100)
-z = np.linspace(0, height, 50)
-theta, z = np.meshgrid(theta, z)
-x = radius * np.cos(theta) + center[0]
-y = radius * np.sin(theta) + center[1]
+    # Setup plot
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
 
-# Create the 3D plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+    # Plot torus
+    ax.plot_surface(x, y, z, color='cyan', alpha=0.5)
 
-# Plot the surface
-ax.plot_surface(x, y, z, color='b', alpha=0.5)
+    # Plot point
+    px, py, pz = point
+    ax.scatter(px, py, pz, color='red', s=100)  # Point in red
 
-# Label the axes
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
+    # Annotations and labels
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('Torus with a Point')
 
-plt.show()
+    # Setting limits for better visualization
+    ax.set_xlim([-R-2*r, R+2*r])
+    ax.set_ylim([-R-2*r, R+2*r])
+    ax.set_zlim([-2*r, 2*r])
+
+    plt.show()
+
+# Torus parameters
+R = 5  # Major radius
+r = 1  # Minor radius
+point = (1, 1, 1)  # Point to check
+
+plot_torus_and_point(R, r, point)

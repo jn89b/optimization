@@ -33,7 +33,7 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
 
 mpc_params = {
     'N': 30,
-    'Q': ca.diag([0.01, 0.01, 0.01, 0, 0, 0.0]),
+    'Q': ca.diag([0.1, 0.1, 0.01, 0, 0, 0.0, 0.0]),
     'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
@@ -62,7 +62,7 @@ state_constraints = {
     'theta_max': np.deg2rad(15),
     # 'psi_min':  -np.deg2rad(180),
     # 'psi_max':   np.deg2rad(180),
-    'airspeed_min': 1,
+    'airspeed_min': 2,
     'airspeed_max': 10
 }
 
@@ -88,15 +88,17 @@ init_states = np.array([0, #x
                         0, #z
                         0, #phi
                         0, #theta
-                        np.deg2rad(0), #psi# 3  #airspeed
+                        np.deg2rad(0), #psi# 3  \
+                        5 #airspeed
                         ]) 
 
 final_states = np.array([10, #x
                          10, #y
-                         3, #z
+                         5, #z
                          0,  #phi
                          0,  #theta
                          0,  #psi
+                         5 #airspeed
                          ]) 
 
 init_controls = np.array([0, 
@@ -112,8 +114,8 @@ plane.set_state_space()
 USE_BASIC = False
 USE_OBS_AVOID = False
 USE_DYNAMIC_THREATS = False
-USE_PEW_PEW = True
-USE_TIME_CONSTRAINT_PEW_PEW= False
+USE_PEW_PEW = False
+USE_TIME_CONSTRAINT_PEW_PEW = True
 plt.close('all')
 seed_number = 0
 np.random.seed(seed_number)
@@ -329,7 +331,7 @@ elif USE_PEW_PEW:
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1E1, 
+            'weight': 1, #1E1, 
             'radius_target': 0.5
             }
     
@@ -366,13 +368,21 @@ elif USE_PEW_PEW:
         'z': [final_states[2]],
         'radii': [0.5]
     }   
+    #plot goal locations
+
     
     #plot the goal location
     ax = data_vis.plot_obstacles_3D(goal_params, ax, z_low=final_states[2]-5, 
                                     z_high=final_states[2]+5)
     
+    ax.scatter(final_states[0], final_states[1], final_states[2], marker='x', color='g', 
+                label='Goal Position')
     
-    ax = data_vis.plot_controls(solution_results, time_vector, plane.n_controls)
+    
+    fig, ax = data_vis.plot_controls(solution_results, time_vector, plane.n_controls)
+    
+    fig, ax = data_vis.plot_states(solution_results, time_vector, plane.n_states)
+
     # fig,ax = plt.subplots(1, figsize=(10,10))
     # ax.scatter(final_states[0], final_states[1], marker='x', color='b')
     # #plot with color as time 
@@ -393,13 +403,21 @@ elif USE_PEW_PEW:
 #%% USE TIME CONSTRAINT PEW PEW 
 elif USE_TIME_CONSTRAINT_PEW_PEW:
     
+    mpc_params = {
+        'N': 30,
+        'Q': ca.diag([0.01, 0.01, 0.01, 0, 0, 0.0, 0.0]),
+        'R': ca.diag([0, 0, 0, 0.0]),
+        'dt': 0.1
+    }
+    
     effector_config = {
             'effector_range': 10, 
             'effector_power': 1, 
-            'effector_type': 'directional_3d', 
+            'effector_type': 'omnidirectional', #'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
             'weight': 1E1, 
-            'radius_target': 0.5
+            'radius_target': 1.0,
+            'minor_radius': 2.0           
             }
     
     obs_avoid_params = {
@@ -411,7 +429,8 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     }
     
     full_time = mpc_params['N']*mpc_params['dt']
-    time_constraint_val = mpc_params['dt'] * mpc_params['N'] / 2
+    time_constraint_val = mpc_params['dt'] * mpc_params['N'] 
+    time_constraint_val = 2.5
     
     plane_mpc = PlaneOptControl(
         control_constraints, 
@@ -422,8 +441,8 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
         pew_pew_params=effector_config,
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params,
-        use_time_constraints=True,
-        time_constraint_val=time_constraint_val
+        use_time_constraints=False,
+        time_constraint_val=time_constraint_val,
     )
 
     goal_params = {
