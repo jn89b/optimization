@@ -33,7 +33,7 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
 
 mpc_params = {
     'N': 30,
-    'Q': ca.diag([0.0, 0.0, 0.0, 0, 0, 0.0]),
+    'Q': ca.diag([0.01, 0.01, 0.01, 0, 0, 0.0]),
     'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
@@ -91,9 +91,9 @@ init_states = np.array([0, #x
                         np.deg2rad(0), #psi# 3  #airspeed
                         ]) 
 
-final_states = np.array([15, #x
-                         15, #y
-                         0, #z
+final_states = np.array([10, #x
+                         10, #y
+                         3, #z
                          0,  #phi
                          0,  #theta
                          0,  #psi
@@ -102,7 +102,7 @@ final_states = np.array([15, #x
 init_controls = np.array([0, 
                           0, 
                           0, 
-                          (control_constraints['v_cmd_max']+control_constraints['v_cmd_min'])/2])
+                          control_constraints['v_cmd_max']])
 
 
 data_vis = DataVisualizer()
@@ -325,7 +325,7 @@ elif USE_DYNAMIC_THREATS:
 #%% PEW PEW
 elif USE_PEW_PEW:
     effector_config = {
-            'effector_range': 3, 
+            'effector_range': 10, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two

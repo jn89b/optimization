@@ -113,6 +113,7 @@ class PlaneOptControl(OptimalControlProblem):
                 cost += cost \
                         + (states - x_final).T @ Q @ (states - x_final) \
                         + controls.T @ R @ controls
+                                        
         #add terminal cost
         else:
             print('Using a time constraint cost function')
@@ -242,54 +243,48 @@ class PlaneOptControl(OptimalControlProblem):
                 v_cmd_next = self.U[3, i]
             else:
                 v_cmd_next = self.U[3, i+1]
-            
 
-            #get the unit vector of the ego vehicle
-            unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw))
-
-            dx = x_pos - target_location[0]
-            dy = y_pos - target_location[1]
-            dz = z_pos - target_location[2]
-                        
-            dtarget = ca.sqrt((dx)**2 + (dy)**2)
+            #right now this is set up for the directional effector
+            dx = target_location[0] - x_pos
+            dy = target_location[1] - y_pos
+            dz = target_location[2] - z_pos
+                    
+            dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
             #los_target = ca.vertcat(dx, dy)
             los_target = ca.atan2(dy, dx)
-            
-            #take dot product of the line of sight vector and the target vector
-            #we want to be as aligned to the target so the value would be one
-            #we add a negative sign to flip the value since we are minimizing 
-            # dot_product = ca.dot(los_target, unit_vector)
             
             #slow down cost  
             acceleration = (v_cmd_next - v_cmd) / self.dt #/ dtarget
             acceleration_cost = acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
-
-            dr_dv = dtarget/v_cmd
-            
-            #can set this as an inverse factor
+                
+            #these exponential functions will be used to account for the distance and angle of the target
+            #the closer we are to the target the more the distance factor will be close to 1
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
+            
+            #the closer we are to the target the more the angle factor will be close to 1
             error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
             error_psi_factor = ca.exp(-error_psi/self.Effector.effector_angle)
             
+            #the closer we are to the target the more the angle factor will be close to 1
             los_theta = ca.atan2(dz, dx)
             error_theta = ca.fabs(los_theta - pitch) 
             error_theta_factor = ca.exp(-error_theta/self.Effector.effector_angle)  
-            
 
-            total_factor = error_dist_factor * error_psi_factor * error_theta_factor
+            #we multiply all three factors if any one of them are close to 0 the total_factor 
+            #will then be close to 0
+            total_factor = error_dist_factor * error_theta_factor# *  error_psi_factor
             effector_dmg = self.Effector.compute_power_density(dtarget, 
                                                                total_factor, 
                                                                use_casadi=True)
-            # effector_dmg = dtarget
-            #put a negative since we want to minimize the cost, so just flip the sign
-            # effector_cost += (within_range * within_fov *(dr_dv)) #(-effector_dmg * time_on_target)
-            #effector_cost += -effector_dmg#dtarget/v_cmd - effector_dmg
-            effector_cost += -effector_dmg + v_cmd
+            
+            #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
+            vel_penalty = ca.if_else(total_factor > 0.2, 1, 0)   
+            
+            #as I get closer to the target I want to slow down my velocity
+            effector_cost += -effector_dmg + (vel_penalty*v_cmd)
 
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
-            #obstacle_distance = 1/obstacle_distance
-            #avoidance_cost += ca.sum2(diff)
             self.g = ca.vertcat(self.g, diff)
             
         #maximize time on target and minimize acceleration
