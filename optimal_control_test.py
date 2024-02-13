@@ -29,9 +29,9 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
     return fig,ax 
 
 mpc_params = {
-    'N': 30,
-    'Q': ca.diag([0.0, 0.0, 0, 0, 0, 0.0]),
-    'R': ca.diag([0, 0, 0, 0.1]),
+    'N': 50,
+    'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0.0]),
+    'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
 
@@ -85,7 +85,7 @@ init_states = np.array([0, #x
                         0, #z
                         0, #phi
                         0, #theta
-                        np.deg2rad(45), #psi# 3  #airspeed
+                        np.deg2rad(0), #psi# 3  #airspeed
                         ]) 
 
 final_states = np.array([10, #x
@@ -107,7 +107,8 @@ plane.set_state_space()
 USE_BASIC = False
 USE_OBS_AVOID = False
 USE_DYNAMIC_THREATS = False
-USE_PEW_PEW = True
+USE_PEW_PEW = False
+USE_TIME_CONSTRAINT_PEW_PEW= True
 plt.close('all')
 seed_number = 0
 np.random.seed(seed_number)
@@ -318,13 +319,12 @@ elif USE_DYNAMIC_THREATS:
     
 #%% PEW PEW
 elif USE_PEW_PEW:
-        
     effector_config = {
             'effector_range': 4, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1E-1, 
+            'weight': 1E2, 
             'radius_target': 0.5
             }
     
@@ -352,7 +352,14 @@ elif USE_PEW_PEW:
     
     fig,ax = plt.subplots(1, figsize=(10,10))
     ax.scatter(final_states[0], final_states[1], marker='x', color='b')
-    ax.plot(solution_results['x'], solution_results['y'], 'r')
+    #plot with color as time 
+    time_color = np.linspace(0, mpc_params['dt']*mpc_params['N'], mpc_params['N']+1)
+    ax.scatter(solution_results['x'], solution_results['y'], c=time_color, cmap='viridis', marker='x', 
+            label='Plane trajectory')
+    #show color bar
+    cbar = plt.colorbar(ax.scatter(solution_results['x'], solution_results['y'], c=time_color, cmap='viridis', marker='x'))
+    #map cb
+    #ax.plot(solution_results['x'], solution_results['y'], 'r')
     #plot the goal position
 
     #plot the controls
@@ -360,3 +367,59 @@ elif USE_PEW_PEW:
     plot_controls(solution_results, time_vec, plane.n_controls)
         
     plt.show()
+#%% USE TIME CONSTRAINT PEW PEW 
+elif USE_TIME_CONSTRAINT_PEW_PEW:
+    
+    effector_config = {
+            'effector_range': 4, 
+            'effector_power': 1, 
+            'effector_type': 'directional_3d', 
+            'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
+            'weight': 1E1, 
+            'radius_target': 0.5
+            }
+    
+    obs_avoid_params = {
+        'weight': 1E-10,
+        'safe_distance': 1.0,
+        'x': [],
+        'y': [],
+        'radii': []
+    }
+    
+    full_time = mpc_params['N']*mpc_params['dt']
+    time_constraint_val = full_time
+    
+    plane_mpc = PlaneOptControl(
+        control_constraints, 
+        state_constraints, 
+        mpc_params, 
+        plane,
+        use_pew_pew=True,
+        pew_pew_params=effector_config,
+        use_obstacle_avoidance=True,
+        obs_params=obs_avoid_params,
+        use_time_constraints=True,
+        time_constraint_val=time_constraint_val
+    )
+    
+    plane_mpc.init_optimization_problem()
+    solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
+    
+    fig,ax = plt.subplots(1, figsize=(10,10))
+    time_values = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)
+    ax.scatter(solution_results['x'], solution_results['y'], c=time_values, 
+               cmap='viridis', marker='x', label='Plane trajectory')
+
+    #show color bar
+    cbar = plt.colorbar(ax.scatter(solution_results['x'], solution_results['y'], c=time_values, cmap='viridis', marker='x'))
+    #plot the goal location
+    ax.scatter(final_states[0], final_states[1], marker='o', color='g', label='Target')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.legend() 
+
+    #plot title
+    ax.set_title('Plane trajectory with time constraint: ' + str(time_constraint_val))    
+
+    plt.show()    

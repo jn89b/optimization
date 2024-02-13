@@ -74,25 +74,28 @@ class OptimalControlProblem():
             #constraint to make sure our dynamics are satisfied
             self.g = ca.vertcat(self.g, self.X[:, k+1] - state_next_rk4) 
         
-    def compute_dynamics_cost(self) -> ca.SX:
+    def compute_dynamics_cost(self, time_constraint:bool=False) -> ca.SX:
         """compute the cost function"""
         n_states = self.model_casadi.n_states
         Q = self.Q
         R = self.R
         P = self.P
         x_final = P[n_states:]
-        
+        v_cmd = self.U[3, :]
         cost = 0
-        for k in range(self.N):
-            states = self.X[:, k]
-            controls = self.U[:, k]
-            
-            cost += cost \
-                    + (states - x_final).T @ Q @ (states - x_final) \
-                    + controls.T @ R @ controls        
-        
+        if time_constraint:
+            for k in range(self.N):
+                states = self.X[:, k]
+                controls = self.U[:, k]
+                cost += cost \
+                        + (states - x_final).T @ Q @ (states - x_final) \
+                        + controls.T @ R @ controls
         #add terminal cost
-        # cost += (self.X[:, self.N] - x_final).T @ Q @ (self.X[:, self.N] - x_final)
+        else:
+            terminal_cost = (self.X[:, self.N] - x_final).T @ Q @ (self.X[:, self.N] - x_final)
+            #divide cost by velocity 
+            cost += (terminal_cost / v_cmd[-1])
+        
         print('Dynamics cost computed')
         return cost
     

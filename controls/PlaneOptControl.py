@@ -14,7 +14,9 @@ class PlaneOptControl(OptimalControlProblem):
                  use_dynamic_threats:bool=False,
                  dynamic_threat_params:dict=None, 
                  use_pew_pew:bool=False,
-                 pew_pew_params:dict=None) -> None:
+                 pew_pew_params:dict=None,
+                 use_time_constraints:bool=False,
+                 time_constraint_val:float=None) -> None:
         
         super().__init__(mpc_params, casadi_model)
         self.control_constraints = control_constraints
@@ -34,8 +36,41 @@ class PlaneOptControl(OptimalControlProblem):
         if self.use_pew_pew:
             self.Effector = Effector(self.pew_pew_params, use_casadi=True)
             
+        #time constraint optimization
+        #user sets some time, convert that to index and use that as a constraint
+        self.use_time_constraints = use_time_constraints
+        self.time_constraint_val = time_constraint_val
+        self.initialize_time_constraints()
+            
         self.is_initialized = False
         
+    
+    def initialize_time_constraints(self) -> None:
+        if self.use_time_constraints:
+            if self.time_constraint_val is None:
+                #set the constraint as the terminal point of the vehicle
+                self.time_constraint_val = self.N*self.dt 
+                self.time_constraint_idx = self.N
+                print('Time constraint value not set, using default value:', self.time_constraint_val) 
+            else:
+                #make sure time constraint index is within the range of the vehicle
+                self.time_constraint_val = self.time_constraint_val
+                if self.time_constraint_val < 0:
+                    raise ValueError('Time constraint value must be greater than zero', 
+                                     self.time_constraint_val)
+                if self.time_constraint_val > self.N*self.dt:
+                    raise ValueError('Time constraint value is greater than the total time of the vehicle', 
+                                     self.time_constraint_val, self.N*self.dt)
+                    
+                #convert the time constraint to an index
+                self.time_constraint_idx = int(self.time_constraint_val/self.dt)
+                if self.time_constraint_idx > self.N:
+                    raise ValueError('Time constraint index is greater than the number of steps', 
+                                     self.time_constraint_idx, self.N)
+                    
+                print("Time constraint value is set to:", self.time_constraint_val)
+                print("Time constraint index is set to:", self.time_constraint_idx) 
+                    
     def update_bound_constraints(self) -> None:
         #add control constraints
         self.lbx['U'][0,:] = self.control_constraints['u_phi_min']
@@ -60,6 +95,34 @@ class PlaneOptControl(OptimalControlProblem):
         self.lbx['X'][4,:] = self.state_constraints['theta_min']
         self.ubx['X'][4,:] = self.state_constraints['theta_max']
         print('Bound constraints updated')
+
+    def compute_dynamics_cost(self) -> ca.SX:
+        """compute the cost function"""
+        n_states = self.model_casadi.n_states
+        Q = self.Q
+        R = self.R
+        P = self.P
+        x_final = P[n_states:]
+        v_cmd = self.U[3, :]
+        cost = 0
+        if self.use_time_constraints == False:
+            print("Computing dynamics cost without time constraint")
+            for k in range(self.N):
+                states = self.X[:, k]
+                controls = self.U[:, k]
+                cost += cost \
+                        + (states - x_final).T @ Q @ (states - x_final) \
+                        + controls.T @ R @ controls
+        #add terminal cost
+        else:
+            print('Using a time constraint cost function')
+            time_constraint_idx = self.time_constraint_idx
+            terminal_cost = (self.X[:, time_constraint_idx] - x_final).T @ Q @ \
+                (self.X[:, time_constraint_idx] - x_final)
+            #divide cost by velocity 
+            cost += (terminal_cost / v_cmd[-1])
+        
+        return cost
 
     def compute_obstacle_avoidance_cost(self) -> ca.SX:
         obs_avoid_weight = self.obs_params['weight']
@@ -182,30 +245,29 @@ class PlaneOptControl(OptimalControlProblem):
             
 
             #get the unit vector of the ego vehicle
-            unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw), 0)
+            unit_vector = ca.vertcat(ca.cos(yaw), ca.sin(yaw))
 
             dx = x_pos - target_location[0]
             dy = y_pos - target_location[1]
             dz = z_pos - target_location[2]
                         
-            dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
-            los_target = ca.vertcat(dx, dy, dz)
+            dtarget = ca.sqrt((dx)**2 + (dy)**2)
+            los_target = ca.vertcat(dx, dy)
             
             #take dot product of the line of sight vector and the target vector
             #we want to be as aligned to the target so the value would be one
             #we add a negative sign to flip the value since we are minimizing 
-            dot_product = -ca.dot(los_target, unit_vector)
-            
+            dot_product = ca.dot(los_target, unit_vector)
             
             #slow down cost  
-            acceleration = (v_cmd_next - v_cmd) #/ dtarget
-            acceleration_cost += acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
-                        
+            acceleration = (v_cmd_next - v_cmd) / self.dt #/ dtarget
+            acceleration_cost = acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
+            
             #get the current control for the velocity command to relate it to time on target
             #the slower we go the longer we stay on target
             #invert this to minimize
             # time_on_target = -dtarget/v_cmd
-        
+            
             #convert x_pos, y_pos, z_pos to a 3D vector
             # ref_point = ca.horzcat(x_pos, y_pos, z_pos)
             # self.Effector.set_effector_location3d(ref_point, roll ,
@@ -215,16 +277,29 @@ class PlaneOptControl(OptimalControlProblem):
             within_range = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
             within_fov = ca.if_else(dot_product > 0, 1, 0)
             
-            #effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
+            # effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
             # effector_dmg = dtarget
             #put a negative since we want to minimize the cost, so just flip the sign
-            effector_cost += (within_range * within_fov* (acceleration_cost))#(-effector_dmg * time_on_target)
+            effector_cost += (within_range*within_fov *(acceleration)) #(-effector_dmg * time_on_target)
 
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
             #obstacle_distance = 1/obstacle_distance
             #avoidance_cost += ca.sum2(diff)
             self.g = ca.vertcat(self.g, diff)
+            
+        #maximize time on target and minimize acceleration
+        x_final = self.X[0, -1]
+        y_final = self.X[1, -1]
+        z_final = self.X[2, -1]
+        
+        dx = x_final - target_location[0]
+        dy = y_final - target_location[1]
+        dz = z_final - target_location[2]
+        t_final = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)/v_cmd
+        
+        #want to minimize time on target so we add a negative sign
+        # time_cost = -t_final
         
         total_effector_cost = self.pew_pew_params['weight'] * ca.sumsqr(effector_cost)
         
@@ -373,14 +448,11 @@ class PlaneOptControl(OptimalControlProblem):
             self.g = []
             self.cost = 0
             
-            
         self.dynamic_threat_params = threat_params
         self.use_dynamic_threats = True
         self.cost = self.compute_total_cost()
         self.init_solver(self.cost)
         self.is_initialized = True
         print('Dynamic threats updated')
-        
-    
     
     
