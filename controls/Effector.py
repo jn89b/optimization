@@ -105,8 +105,7 @@ class Effector():
                 return effector_factor * self.effector_power / (target_distance**2 * 4*ca.pi)
             
             elif self.effector_type == 'circle':
-                # return self.effector_power / (target_distance**2 * 4*ca.pi)
-                return self.effector_power / (4*ca.pi)
+                return self.effector_power / (target_distance**2 * 4*ca.pi)
             
             else:
                 raise Exception("Effector type not recognized")

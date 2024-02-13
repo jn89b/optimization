@@ -252,35 +252,39 @@ class PlaneOptControl(OptimalControlProblem):
             dz = z_pos - target_location[2]
                         
             dtarget = ca.sqrt((dx)**2 + (dy)**2)
-            los_target = ca.vertcat(dx, dy)
+            #los_target = ca.vertcat(dx, dy)
+            los_target = ca.atan2(dy, dx)
             
             #take dot product of the line of sight vector and the target vector
             #we want to be as aligned to the target so the value would be one
             #we add a negative sign to flip the value since we are minimizing 
-            dot_product = ca.dot(los_target, unit_vector)
+            # dot_product = ca.dot(los_target, unit_vector)
             
             #slow down cost  
             acceleration = (v_cmd_next - v_cmd) / self.dt #/ dtarget
             acceleration_cost = acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
+
+            dr_dv = dtarget/v_cmd
             
-            #get the current control for the velocity command to relate it to time on target
-            #the slower we go the longer we stay on target
-            #invert this to minimize
-            # time_on_target = -dtarget/v_cmd
+            #can set this as an inverse factor
+            error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
+            error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
+            error_psi_factor = ca.exp(-error_psi/self.Effector.effector_angle)
             
-            #convert x_pos, y_pos, z_pos to a 3D vector
-            # ref_point = ca.horzcat(x_pos, y_pos, z_pos)
-            # self.Effector.set_effector_location3d(ref_point, roll ,
-            #                                       pitch, yaw)
+            los_theta = ca.atan2(dz, dx)
+            error_theta = ca.fabs(los_theta - pitch) 
+            error_theta_factor = ca.exp(-error_theta/self.Effector.effector_angle)  
             
-            #this is to multiply the value if the target is within the effector range
-            within_range = ca.if_else(dtarget < self.Effector.effector_range, 1, 0)
-            within_fov = ca.if_else(dot_product > 0, 1, 0)
-            
-            # effector_dmg = self.Effector.compute_power_density(dtarget, 1, use_casadi=True)
+
+            total_factor = error_dist_factor * error_psi_factor * error_theta_factor
+            effector_dmg = self.Effector.compute_power_density(dtarget, 
+                                                               total_factor, 
+                                                               use_casadi=True)
             # effector_dmg = dtarget
             #put a negative since we want to minimize the cost, so just flip the sign
-            effector_cost += (within_range*within_fov *(acceleration)) #(-effector_dmg * time_on_target)
+            # effector_cost += (within_range * within_fov *(dr_dv)) #(-effector_dmg * time_on_target)
+            #effector_cost += -effector_dmg#dtarget/v_cmd - effector_dmg
+            effector_cost += -effector_dmg + v_cmd
 
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
@@ -301,7 +305,7 @@ class PlaneOptControl(OptimalControlProblem):
         #want to minimize time on target so we add a negative sign
         # time_cost = -t_final
         
-        total_effector_cost = self.pew_pew_params['weight'] * ca.sumsqr(effector_cost)
+        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost) #+ time_cost
         
         return total_effector_cost
             
@@ -452,8 +456,7 @@ class PlaneOptControl(OptimalControlProblem):
         self.cost = self.compute_total_cost()
         self.init_solver(self.cost)
         self.is_initialized = True
-        print('Dynamic threats updated')'
+        print('Dynamic threats updated')
         
-    def plot_obstacles(obstacle_list:list, current_ax) -> None:
-        pass
+
         
