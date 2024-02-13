@@ -440,8 +440,7 @@ class PlaneOptControl(OptimalControlProblem):
         self.init_solver(self.cost)
         self.is_initialized = True
         print('Optimization problem initialized')
-        
-        
+
     def update_dynamic_threats(self, threat_params:dict) -> None:
         if self.is_initialized:
             print('Optimization problem already initialized')
@@ -453,6 +452,8 @@ class PlaneOptControl(OptimalControlProblem):
         self.cost = self.compute_total_cost()
         self.init_solver(self.cost)
         self.is_initialized = True
-        print('Dynamic threats updated')
-    
-    
+        print('Dynamic threats updated')'
+        
+    def plot_obstacles(obstacle_list:list, current_ax) -> None:
+        pass
+        

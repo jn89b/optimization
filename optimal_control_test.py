@@ -6,6 +6,8 @@ from matplotlib import pyplot as plt
 from models.Plane import Plane
 from drone_control.Threat import Threat
 from controls.PlaneOptControl import PlaneOptControl
+from data_vis.DataVisualizer import plot_controls,\
+    plot_trajectory_2d, plot_trajectory_3d
 
 def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
     #plot controls
@@ -30,7 +32,7 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
 
 mpc_params = {
     'N': 50,
-    'Q': ca.diag([0.1, 0.1, 0, 0, 0, 0.0]),
+    'Q': ca.diag([0.1, 0.1, 0.1, 0, 0, 0.0]),
     'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
@@ -388,7 +390,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     }
     
     full_time = mpc_params['N']*mpc_params['dt']
-    time_constraint_val = full_time
+    time_constraint_val = mpc_params['dt'] * mpc_params['N'] / 2
     
     plane_mpc = PlaneOptControl(
         control_constraints, 
@@ -405,21 +407,18 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     
     plane_mpc.init_optimization_problem()
     solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
-    
-    fig,ax = plt.subplots(1, figsize=(10,10))
-    time_values = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)
-    ax.scatter(solution_results['x'], solution_results['y'], c=time_values, 
-               cmap='viridis', marker='x', label='Plane trajectory')
+    time_list = np.linspace(0, mpc_params['N']*mpc_params['dt'], mpc_params['N']+1)
 
-    #show color bar
-    cbar = plt.colorbar(ax.scatter(solution_results['x'], solution_results['y'], c=time_values, cmap='viridis', marker='x'))
+    fig,ax = plot_trajectory_3d(solution_results, use_time_color=True, 
+                                time_list=time_list)
     #plot the goal location
-    ax.scatter(final_states[0], final_states[1], marker='o', color='g', label='Target')
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.legend() 
-
-    #plot title
-    ax.set_title('Plane trajectory with time constraint: ' + str(time_constraint_val))    
-
-    plt.show()    
+    ax.scatter(final_states[0], final_states[1], final_states[2], marker='x', color='g',
+               label='Goal Position')
+    ax.legend()
+    ax.set_zlim(-10, 10)
+    ax.set_title('Time Constraint set to '+str(time_constraint_val))
+    
+    fig,ax = plot_controls(solution_results, time_list, plane.n_controls)
+    
+    
+    plt.show()

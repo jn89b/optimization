@@ -46,6 +46,7 @@ class OptiCasadi:
             'ipopt': {
                 # 'print_level': 2,
                 # 'max_iter': 200,
+                'max_cpu_time': 0.2,
                 # # 'linear_solver': 'mumps',
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,
