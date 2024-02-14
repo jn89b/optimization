@@ -8,7 +8,8 @@ from data_vis.DataVisualizer import DataVisualizer
 
 plt.close('all')
 
-
+def find_driveby_point(goal_position, current_los):
+    pass
 
 ###### INITIAL CONFIGURATIONS ########
 mpc_params = {
@@ -95,13 +96,13 @@ N_obstacles = 10
 
 title_video = 'Maximize Time on Target with Directional Effector'
 SAVE_GIF = False
+
 USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
 USE_DIRECTIONAL_PEW_PEW = False
-USE_DIRECTIONAL_PEW_PEW_OBSTACLE = True
-
-
+USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
+USE_OMNIDIRECTIONAL_PEW_PEW = True
 ############   MPC   #####################
 if USE_BASIC:
     plane_mpc = PlaneOptControl(
@@ -208,7 +209,43 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params
     )
-
+elif USE_OMNIDIRECTIONAL_PEW_PEW:
+    Q_val = 1E-4
+    mpc_params = {
+        'N': 30,
+        'Q': ca.diag([Q_val, Q_val, Q_val, 0, 0, 0.0, 0.0]),
+        'R': ca.diag([0.00, 0.00, 0.00, 0.00]),
+        'dt': 0.1
+    }
+    effector_config = {
+            'effector_range': 10, 
+            'effector_power': 1, 
+            'effector_type': 'omnidirectional', 
+            'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
+            'weight': 1E1, 
+            'radius_target': 2.0,
+            'minor_radius': 1.0
+            }
+    
+    obs_avoid_params = {
+        'weight': Q_val,
+        'safe_distance': 1.0,
+        'x': [],
+        'y': [],
+        'radii': []
+    }
+    
+    plane_mpc = PlaneOptControl(
+        control_constraints, 
+        state_constraints, 
+        mpc_params, 
+        plane,
+        use_pew_pew=True,
+        pew_pew_params=effector_config,
+        use_obstacle_avoidance=True,
+        obs_params=obs_avoid_params
+    )
+    
 plane_mpc.init_optimization_problem()
 #solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
 
@@ -298,10 +335,14 @@ if USE_OBSTACLE or USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
         data_vis.plot_obstacles_3D(obstacle, ax, z_low=-5, z_high=5, color_obs=color_obstacle)
 ax.legend()
 ax.set_title(title_video)
+ax.view_init(39, -115, 0)
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
 
 folder_dir = 'videos/'
 if SAVE_GIF:
-    animate.save('plane_mpc.gif', writer='imagemagick', fps=60)
+    animate.save('directional_effector_obs.gif', writer='imagemagick', fps=60)
 
 fig, ax = data_vis.plot_controls(entire_solution, time_span, plane.n_controls)
 

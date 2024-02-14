@@ -388,12 +388,13 @@ class PlaneOptControl(OptimalControlProblem):
                                                                total_factor, 
                                                                use_casadi=True)
             # negative because we want to minimize
-            effector_cost += -effector_dmg
+            effector_cost += -effector_dmg 
             
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + \
-                self.pew_pew_params['minor_radius'] 
+                self.pew_pew_params['minor_radius']
+                 
             self.g = ca.vertcat(self.g, diff)
         
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)

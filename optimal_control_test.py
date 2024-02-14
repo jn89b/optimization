@@ -405,7 +405,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     
     mpc_params = {
         'N': 30,
-        'Q': ca.diag([0.1, 0.1, 0.5, 0, 0, 0.0, 0.0]),
+        'Q': ca.diag([0.1, 0.1, 0.1, 0, 0, 0.0, 0.0]),
         'R': ca.diag([0, 0, 0, 0.0]),
         'dt': 0.1
     }
@@ -415,7 +415,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1, 
+            'weight': 10, 
             'radius_target': 0.5,
             'minor_radius': 2.0           
             }
@@ -442,7 +442,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
         pew_pew_params=effector_config,
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params,
-        use_time_constraints=False,
+        use_time_constraints=True,
         time_constraint_val=time_constraint_val,
     )
 
