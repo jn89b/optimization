@@ -1,10 +1,33 @@
 import numpy as np
 import casadi as ca
+
 from matplotlib import pyplot as plt
 from models.Plane import Plane
 from drone_control.Threat import Threat
 from controls.PlaneOptControl import PlaneOptControl
 from data_vis.DataVisualizer import DataVisualizer
+
+def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray, 
+                            heading_rad:float, effector_range:float):
+    """
+    Finds the lateral offset directions of the omnidirectional effector
+    """
+    los_target = np.arctan2(goal_position[1] - current_position[1], 
+                            goal_position[0] - current_position[0])
+    
+    los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
+    ego_unit_vector = np.array([np.cos(heading_rad), np.sin(heading_rad)])
+    
+    delta_vector    = los_unit_vector - ego_unit_vector
+    
+    drive_by_unit   =  -delta_vector
+    drive_by_vector = drive_by_unit * effector_range
+    
+    #apply to goal position
+    drive_by_position = goal_position + drive_by_vector
+    
+    return drive_by_position
+    
 
 plt.close('all')
 
