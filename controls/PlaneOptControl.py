@@ -36,6 +36,9 @@ class PlaneOptControl(OptimalControlProblem):
         self.pew_pew_params = pew_pew_params
         if self.use_pew_pew:
             self.Effector = Effector(self.pew_pew_params, use_casadi=True)
+            if self.Effector.effector_type == 'omnidirectional':
+                #we need to add an additional parameter P to the optimization problem
+                self.driveby_location = ca.SX.sym('driveby_location', 3)
             
         #time constraint optimization
         #user sets some time, convert that to index and use that as a constraint
@@ -333,9 +336,7 @@ class PlaneOptControl(OptimalControlProblem):
     def compute_omni_pew_cost(self) -> ca.SX:
         """
         This cost function will be used to compute the cost of an omnidirectional effector
-        Shaped as a toroid we will cheaply model the toroid:
-        
-         
+        Shaped as a toroid we will cheaply model the toroid: 
         """
         n_states = self.model_casadi.n_states
         target_location = self.P[n_states:]
@@ -349,11 +350,6 @@ class PlaneOptControl(OptimalControlProblem):
             pitch = self.X[4, i]
             yaw   = self.X[5, i]
             v_cmd = self.U[3, i]
-
-            if i == self.N-1:
-                v_cmd_next = self.U[3, i]
-            else:
-                v_cmd_next = self.U[3, i+1]
 
             ###### DIRECTIONAL EFFECTOR COST FUNCTION MAXIMIZE TIME ON TARGET BY SLOWING DOWN APPROACH######
             #right now this is set up for the directional effector
@@ -393,10 +389,10 @@ class PlaneOptControl(OptimalControlProblem):
             
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
-            diff = -dtarget + self.pew_pew_params['radius_target'] + \
-                self.pew_pew_params['minor_radius']
+            diff = -dtarget #+ self.pew_pew_params['radius_target'] + \
+                #self.pew_pew_params['minor_radius']
                  
-            self.g = ca.vertcat(self.g, diff)
+            # self.g = ca.vertcat(self.g, diff)
         
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
         
@@ -425,7 +421,8 @@ class PlaneOptControl(OptimalControlProblem):
                 
         return self.cost
 
-    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:
+    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray, 
+              use_omni:bool=False, driveby_location:np.ndarray=None) -> dict:
         """solve the optimal control problem"""
         
         state_init = ca.DM(x0)
@@ -439,7 +436,7 @@ class PlaneOptControl(OptimalControlProblem):
         
         if self.use_obstacle_avoidance:
             # constraints lower bound added 
-            if self.use_pew_pew:
+            if self.use_pew_pew and self.Effector.effector_type == 'directional_3d':
                 print('Using pew pew with obstacle avoidance')
                 num_obstacles = len(self.obs_params['x']) + 1
                 num_constraints = num_obstacles * self.N

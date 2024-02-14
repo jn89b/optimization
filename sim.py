@@ -12,12 +12,15 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
     """
     Finds the lateral offset directions of the omnidirectional effector
     """    
-    # los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
+    
     ego_unit_vector = np.array([np.cos(heading_rad), np.sin(heading_rad)])
     
     #swap the direction sign to get the normal vector
     drive_by_vector_one = np.array([ego_unit_vector[1], -ego_unit_vector[0]])
     drive_by_vector_two = np.array([-ego_unit_vector[1], ego_unit_vector[0]])
+    
+    drive_by_vector_one = drive_by_vector_one * effector_range
+    drive_by_vector_two = drive_by_vector_two * effector_range
     
     #pick the one closer to the current position
     distance_one = np.linalg.norm(current_position - (goal_position + drive_by_vector_one))
@@ -84,7 +87,7 @@ init_states = np.array([0, #x
                         ]) 
 
 final_states = np.array([100, #x
-                         0, #y
+                         100, #y
                          5, #z
                          0,  #phi
                          0,  #theta
@@ -236,6 +239,7 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params
     )
+    
 elif USE_OMNIDIRECTIONAL_PEW_PEW:
     Q_val = 1E-3
     mpc_params = {
@@ -257,9 +261,9 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW:
     obs_avoid_params = {
         'weight': Q_val,
         'safe_distance': 1.0,
-        'x': [],
-        'y': [],
-        'radii': []
+        'x': [final_states[0]],
+        'y': [final_states[1]],
+        'radii': [1.0]
     }
     
     plane_mpc = PlaneOptControl(
@@ -281,23 +285,26 @@ if USE_OMNIDIRECTIONAL_PEW_PEW:
     driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                init_states[5], 
                                                effector_config['effector_range'])
-    final_states[0] = driveby_direction[0]
-    final_states[1] = driveby_direction[1]
+    driveby_states = final_states.copy()
+    
+    driveby_states[0] = driveby_direction[0]
+    driveby_states[1] = driveby_direction[1]
     print("Drive By Direction: ", driveby_direction)
 
 solution_history = []
 for i in range(sim_iteration):
         
-    solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
-    
-    # if USE_OMNIDIRECTIONAL_PEW_PEW:
+    if USE_OMNIDIRECTIONAL_PEW_PEW:
         
-    #     driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
-    #                                             init_states[5], 
-    #                                             effector_config['effector_range'])
-    #     final_states[0] = driveby_direction[0]
-    #     final_states[1] = driveby_direction[1]
-    #     print("Drive By Direction: ", driveby_direction)
+        driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
+                                                init_states[5], 
+                                                effector_config['effector_range'])
+        driveby_states = final_states.copy()        
+        driveby_states[0] = driveby_direction[0]
+        driveby_states[1] = driveby_direction[1]
+        solution_results = plane_mpc.get_solution(init_states, driveby_states, init_controls)
+    else:
+        solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
     
     #next states
     next_x = solution_results['x'][idx_next_step]
@@ -363,13 +370,13 @@ if USE_OBSTACLE or USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
             'radii': [random_radii[i]]
         }
         data_vis.plot_obstacles_3D(obstacle, ax, z_low=-5, z_high=5, color_obs=color_obstacle)
-        
-
+    
 ### animate the solution 
 fig,ax, animate = data_vis.animate_trajectory_3D(entire_solution, time_span=10,animation_interval=10)
 ax.scatter(final_states[0], final_states[1], final_states[2], color=goal_color, s=100,
               label='Goal')  # Point in red
 data_vis.plot_obstacles_3D(goal_params, ax, z_low=-5, z_high=5, color_obs=goal_color)
+
 if USE_OBSTACLE or USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
     #plot the obstacles
     for i in range(N_obstacles):
