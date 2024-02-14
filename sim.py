@@ -258,11 +258,16 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW:
             'minor_radius': 1.0
             }
     
+    ## need to set the actual goal position as an obstacle
+    
+    ## this is very hacky, but we need to set the goal position as an obstacle and 
+    ## needs to be the last obstacle
     obs_avoid_params = {
         'weight': Q_val,
         'safe_distance': 1.0,
         'x': [final_states[0]],
         'y': [final_states[1]],
+        'z': [final_states[2]],
         'radii': [1.0]
     }
     
@@ -295,7 +300,6 @@ solution_history = []
 for i in range(sim_iteration):
         
     if USE_OMNIDIRECTIONAL_PEW_PEW:
-        
         driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                 init_states[5], 
                                                 effector_config['effector_range'])
