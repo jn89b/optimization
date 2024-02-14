@@ -112,10 +112,10 @@ plane = Plane()
 plane.set_state_space()
 
 USE_BASIC = False
-USE_OBS_AVOID = True
+USE_OBS_AVOID = False
 USE_DYNAMIC_THREATS = False
 USE_PEW_PEW = False
-USE_TIME_CONSTRAINT_PEW_PEW = False
+USE_TIME_CONSTRAINT_PEW_PEW = True
 plt.close('all')
 seed_number = 0
 np.random.seed(seed_number)
@@ -413,7 +413,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     effector_config = {
             'effector_range': 20, 
             'effector_power': 1, 
-            'effector_type': 'directional_3d', #'omnidirectional', 
+            'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
             'weight': 1, 
             'radius_target': 0.5,
@@ -442,7 +442,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
         pew_pew_params=effector_config,
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params,
-        use_time_constraints=True,
+        use_time_constraints=False,
         time_constraint_val=time_constraint_val,
     )
 

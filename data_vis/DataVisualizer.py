@@ -48,10 +48,17 @@ class DataVisualizer():
         u_psi = np.rad2deg(solution['u_psi'])
         v_cmd = solution['v_cmd']
         
-        ax[0].plot(time_list[:-1], u_phi, 'r', label='u_phi')
-        ax[1].plot(time_list[:-1], u_theta, 'g', label='u_theta')
-        ax[2].plot(time_list[:-1], u_psi, 'b', label='u_psi'), 
-        ax[3].plot(time_list[:-1], v_cmd, 'k', label='v_cmd')
+        #check if time_list is one less than the control list
+        if len(time_list) == len(u_phi):
+            time_list = time_list
+        else:
+            time_list = time_list[:-1]
+                
+    
+        ax[0].plot(time_list, u_phi, 'r', label='u_phi')
+        ax[1].plot(time_list, u_theta, 'g', label='u_theta')
+        ax[2].plot(time_list, u_psi, 'b', label='u_psi'), 
+        ax[3].plot(time_list, v_cmd, 'k', label='v_cmd')
 
         for ax in ax:
             ax.set_ylabel('Control')
@@ -196,17 +203,8 @@ class DataVisualizer():
         
         #animate lines 
         lines = []
-        #check if x is a single list
-        # if isinstance(x, list):
-        #     x = np.array(x)
-        #     y = np.array(y)
-        #     z = np.array(z)
         lines = [ax.plot([], [], [], 'r', label='3D Trajectory')[0]]
         
-        # for i in range(len(x)-1):
-        #     line, = ax.plot(x[i:i+2], y[i:i+2], z[i:i+2], 'r', label='3D Trajectory')
-        #     lines.append(line)
-            
         def init():
             for line in lines:
                 line.set_data([], [])

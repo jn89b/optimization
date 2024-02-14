@@ -184,7 +184,8 @@ class PlaneOptControl(OptimalControlProblem):
             
             self.g = ca.vertcat(self.g, diff[:-1].T)
         
-        total_avoidance_cost = obs_avoid_weight * avoidance_cost
+        # total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
+        total_avoidance_cost = 0
         
         print('Obstacle avoidance cost computed')
         return total_avoidance_cost
@@ -319,7 +320,7 @@ class PlaneOptControl(OptimalControlProblem):
 
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
-            diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance
+            diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance 
             self.g = ca.vertcat(self.g, diff)
                         
             ###### TOROID EFFECTOR TURN IT INTO A TIME CONSTRAINT FUNCTION ######
