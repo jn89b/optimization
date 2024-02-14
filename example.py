@@ -30,7 +30,7 @@ def plot_torus_and_point(R, r, point):
 
     # Setting limits for better visualization
     ax.set_xlim([-R-2*r, R+2*r])
-    ax.set_ylim([-R-2*r, R+2*r])
+    ax.set_ylim([-R-2*r, R+2*r]) 
     ax.set_zlim([-2*r, 2*r])
 
     plt.show()

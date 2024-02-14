@@ -150,7 +150,7 @@ class PlaneOptControl(OptimalControlProblem):
                 #         (self.X[:, k] - x_final)
                 #         #divide cost by velocity
                 #         cost += (terminal_cost / v_cmd[k])
-            else:   
+            else:
                 time_constraint_idx = self.time_constraint_idx
                 terminal_cost = (self.X[:, time_constraint_idx] - x_final).T @ Q @ \
                     (self.X[:, time_constraint_idx] - x_final)
@@ -184,7 +184,7 @@ class PlaneOptControl(OptimalControlProblem):
             
             self.g = ca.vertcat(self.g, diff[:-1].T)
         
-        total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
+        total_avoidance_cost = obs_avoid_weight * avoidance_cost
         
         print('Obstacle avoidance cost computed')
         return total_avoidance_cost
@@ -381,15 +381,13 @@ class PlaneOptControl(OptimalControlProblem):
             #this value will be close to 1 the closer we are in range to the target            
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
             
-            total_factor = error_dist_factor * directional_cost
+            total_factor = ca.fabs(error_dist_factor * directional_cost)
             
             effector_dmg = self.Effector.compute_power_density(dtarget, 
                                                                total_factor, 
                                                                use_casadi=True)
-            
-            effector_cost += effector_dmg
-            
-            
+            # negative because we want to minimize
+            effector_cost += -effector_dmg
             
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']

@@ -33,7 +33,7 @@ def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int):
 
 mpc_params = {
     'N': 30,
-    'Q': ca.diag([0.1, 0.1, 0.01, 0, 0, 0.0, 0.0]),
+    'Q': ca.diag([0.1, 0.1, 0.1, 0, 0, 0.0, 0.0]),
     'R': ca.diag([0, 0, 0, 0.0]),
     'dt': 0.1
 }
@@ -45,8 +45,8 @@ control_constraints = {
     'u_theta_max': np.deg2rad(15),
     'u_psi_min':  -np.deg2rad(45),
     'u_psi_max':   np.deg2rad(45),
-    'v_cmd_min':   3,
-    'v_cmd_max':   6
+    'v_cmd_min':   15,
+    'v_cmd_max':   35
 }
 
 state_constraints = {
@@ -92,8 +92,8 @@ init_states = np.array([0, #x
                         5 #airspeed
                         ]) 
 
-final_states = np.array([10, #x
-                         10, #y
+final_states = np.array([100, #x
+                         100, #y
                          5, #z
                          0,  #phi
                          0,  #theta
@@ -112,10 +112,10 @@ plane = Plane()
 plane.set_state_space()
 
 USE_BASIC = False
-USE_OBS_AVOID = False
+USE_OBS_AVOID = True
 USE_DYNAMIC_THREATS = False
 USE_PEW_PEW = False
-USE_TIME_CONSTRAINT_PEW_PEW = True
+USE_TIME_CONSTRAINT_PEW_PEW = False
 plt.close('all')
 seed_number = 0
 np.random.seed(seed_number)
@@ -134,13 +134,13 @@ if USE_BASIC:
 #%% Use the obstacle avoidance MPC
 elif USE_OBS_AVOID:
     N_obstacles = 5
-    obs_x = np.random.uniform(3, 8, N_obstacles)
-    obs_y = np.random.uniform(3, 8, N_obstacles)
-    random_radii = np.random.uniform(0.5, 0.9, N_obstacles)
+    obs_x = np.random.uniform(40, 100, N_obstacles)
+    obs_y = np.random.uniform(40, 100, N_obstacles)
+    random_radii = np.random.uniform(3.0, 6, N_obstacles)
 
     obs_avoid_params = {
-        'weight': 1E-6,
-        'safe_distance': 0.5,
+        'weight': 3,
+        'safe_distance': 3.0,
         'x': obs_x,
         'y': obs_y,
         'radii': random_radii
@@ -405,24 +405,24 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     
     mpc_params = {
         'N': 30,
-        'Q': ca.diag([0.01, 0.01, 0.01, 0, 0, 0.0, 0.0]),
+        'Q': ca.diag([0.1, 0.1, 0.5, 0, 0, 0.0, 0.0]),
         'R': ca.diag([0, 0, 0, 0.0]),
         'dt': 0.1
     }
     
     effector_config = {
-            'effector_range': 10, 
+            'effector_range': 20, 
             'effector_power': 1, 
-            'effector_type': 'omnidirectional', #'omnidirectional', 
+            'effector_type': 'directional_3d', #'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1E1, 
-            'radius_target': 1.0,
+            'weight': 1, 
+            'radius_target': 0.5,
             'minor_radius': 2.0           
             }
     
     obs_avoid_params = {
-        'weight': 1E-10,
-        'safe_distance': 1.0,
+        'weight': 1E5,
+        'safe_distance': 0.5,
         'x': [],
         'y': [],
         'radii': []
@@ -430,18 +430,19 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
     
     full_time = mpc_params['N']*mpc_params['dt']
     time_constraint_val = mpc_params['dt'] * mpc_params['N'] 
-    time_constraint_val = 2.5
+    time_constraint_val = 1.8
+    # time_constraint_val = True
     
     plane_mpc = PlaneOptControl(
         control_constraints, 
         state_constraints, 
         mpc_params, 
         plane,
-        use_pew_pew=True,
+        use_pew_pew= True,
         pew_pew_params=effector_config,
         use_obstacle_avoidance=True,
         obs_params=obs_avoid_params,
-        use_time_constraints=False,
+        use_time_constraints=True,
         time_constraint_val=time_constraint_val,
     )
 
@@ -463,9 +464,7 @@ elif USE_TIME_CONSTRAINT_PEW_PEW:
                label='Goal Position')
 
     ax = data_vis.plot_obstacles_3D(goal_params, ax, z_low=final_states[2]-5, z_high=final_states[2]+5)
-    #plot goal position 
-    ax.scatter(final_states[0], final_states[1], final_states[2], marker='x', color='g', 
-                label='Goal Position')
+
     ax.legend()
     ax.set_zlim(-10, 10)
     ax.set_title('Time Constraint set to '+str(time_constraint_val))

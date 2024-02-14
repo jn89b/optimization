@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+#animation imports
+from matplotlib import animation
 
 class DataVisualizer():
     """
@@ -162,4 +164,72 @@ class DataVisualizer():
         return current_ax
 
 
+    @staticmethod
+    def unpack_solution_list(solution_list:dict) -> dict:
+        """
+        Unpack the solution list into a dictionary of arrays
+        """
+        solution = {}
+        for key in solution_list[0].keys():
+            solution[key] = np.array([sol[key] for sol in solution_list])
+                
+        #flatten the arrays
+        for key in solution.keys():
+            if key != 'time':
+                solution[key] = solution[key].flatten()
+            else:
+                solution[key] = solution[key].flatten()
+        
+        return solution
+    
+    
+    def animate_trajectory_3D(self, solution:dict, time_span:int=5,
+                              animation_interval:int=20,
+                            time_list:np.ndarray=None):
+        """
+        Animate the 3D trajectory
+        """
+        fig, ax = plt.subplots(subplot_kw={'projection': '3d'}, figsize=(10,10))
+        x = solution['x']
+        y = solution['y']
+        z = solution['z']
+        
+        #animate lines 
+        lines = []
+        #check if x is a single list
+        # if isinstance(x, list):
+        #     x = np.array(x)
+        #     y = np.array(y)
+        #     z = np.array(z)
+        lines = [ax.plot([], [], [], 'r', label='3D Trajectory')[0]]
+        
+        # for i in range(len(x)-1):
+        #     line, = ax.plot(x[i:i+2], y[i:i+2], z[i:i+2], 'r', label='3D Trajectory')
+        #     lines.append(line)
+            
+        def init():
+            for line in lines:
+                line.set_data([], [])
+                line.set_3d_properties([])
+            return lines
+        
+        def update(frame):
+            for line in lines:
+                
+                if frame < time_span:
+                    idx_interval = 0
+                else:
+                    idx_interval = frame - time_span
+                
+                line.set_data(x[idx_interval:frame], y[idx_interval:frame])
+                line.set_3d_properties(z[idx_interval:frame])
+            return lines
+        
+        ani = animation.FuncAnimation(fig, update, frames=len(x), interval=animation_interval,
+                                      init_func=init, blit=True)
+
+
+        return fig,ax,ani
+
+    
         
