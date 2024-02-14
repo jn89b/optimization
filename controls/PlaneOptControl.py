@@ -250,7 +250,8 @@ class PlaneOptControl(OptimalControlProblem):
                     threat_cost +=  distance_cost + dot_product_scale
                     
             total_threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(threat_cost)
-        
+            total_threat_cost = 0
+
         return total_threat_cost
 
     def compute_directional_pew_cost(self) -> ca.SX:

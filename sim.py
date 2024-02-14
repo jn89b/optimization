@@ -11,23 +11,27 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
                             heading_rad:float, effector_range:float):
     """
     Finds the lateral offset directions of the omnidirectional effector
-    """
-    los_target = np.arctan2(goal_position[1] - current_position[1], 
-                            goal_position[0] - current_position[0])
-    
-    los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
+    """    
+    # los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
     ego_unit_vector = np.array([np.cos(heading_rad), np.sin(heading_rad)])
     
-    delta_vector    = los_unit_vector - ego_unit_vector
+    #swap the direction sign to get the normal vector
+    drive_by_vector_one = np.array([ego_unit_vector[1], -ego_unit_vector[0]])
+    drive_by_vector_two = np.array([-ego_unit_vector[1], ego_unit_vector[0]])
     
-    drive_by_unit   =  -delta_vector
-    drive_by_vector = drive_by_unit * effector_range
+    #pick the one closer to the current position
+    distance_one = np.linalg.norm(current_position - (goal_position + drive_by_vector_one))
+    distance_two = np.linalg.norm(current_position - (goal_position + drive_by_vector_two))
     
+    if distance_one < distance_two:
+        drive_by_vector = drive_by_vector_one
+    else:
+        drive_by_vector = drive_by_vector_two
+        
     #apply to goal position
     drive_by_position = goal_position + drive_by_vector
     
     return drive_by_position
-    
 
 plt.close('all')
 
@@ -75,12 +79,12 @@ init_states = np.array([0, #x
                         0, #z
                         0, #phi
                         0, #theta
-                        np.deg2rad(0), #psi# 3  \
+                        np.deg2rad(135), #psi# 3  \
                         5 #airspeed
                         ]) 
 
 final_states = np.array([100, #x
-                         100, #y
+                         0, #y
                          5, #z
                          0,  #phi
                          0,  #theta
@@ -233,7 +237,7 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
         obs_params=obs_avoid_params
     )
 elif USE_OMNIDIRECTIONAL_PEW_PEW:
-    Q_val = 1E-4
+    Q_val = 1E-3
     mpc_params = {
         'N': 30,
         'Q': ca.diag([Q_val, Q_val, Q_val, 0, 0, 0.0, 0.0]),
@@ -245,7 +249,7 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW:
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1E1, 
+            'weight': 0, 
             'radius_target': 2.0,
             'minor_radius': 1.0
             }
@@ -272,10 +276,28 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW:
 plane_mpc.init_optimization_problem()
 #solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
 
+if USE_OMNIDIRECTIONAL_PEW_PEW:
+    
+    driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
+                                               init_states[5], 
+                                               effector_config['effector_range'])
+    final_states[0] = driveby_direction[0]
+    final_states[1] = driveby_direction[1]
+    print("Drive By Direction: ", driveby_direction)
 
 solution_history = []
 for i in range(sim_iteration):
+        
     solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
+    
+    # if USE_OMNIDIRECTIONAL_PEW_PEW:
+        
+    #     driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
+    #                                             init_states[5], 
+    #                                             effector_config['effector_range'])
+    #     final_states[0] = driveby_direction[0]
+    #     final_states[1] = driveby_direction[1]
+    #     print("Drive By Direction: ", driveby_direction)
     
     #next states
     next_x = solution_results['x'][idx_next_step]
@@ -328,6 +350,8 @@ ax.scatter(final_states[0], final_states[1], final_states[2], color=goal_color, 
            label='Goal')  # Point in red
 data_vis.plot_obstacles_3D(goal_params, ax, z_low=-5, z_high=5, color_obs=color_obstacle)
 ax.legend()
+#set equal axis
+ax.axis('equal')
 
 if USE_OBSTACLE or USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
     #plot the obstacles

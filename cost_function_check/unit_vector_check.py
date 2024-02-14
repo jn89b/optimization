@@ -18,31 +18,35 @@ If the goal position is to the left of the ego vehicle, then the omnidirectional
 #     pass
 
 
-def find_drive_by_direction(goal_position:np.ndarray, current_position:np.ndarray, 
+def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray, 
                             heading_rad:float, effector_range:float):
     """
     Finds the lateral offset directions of the omnidirectional effector
-    """
-    los_target = np.arctan2(goal_position[1] - current_position[1], 
-                            goal_position[0] - current_position[0])
-    
-    los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
+    """    
+    # los_unit_vector = np.array([np.cos(los_target), np.sin(los_target)])
     ego_unit_vector = np.array([np.cos(heading_rad), np.sin(heading_rad)])
     
-    delta_vector    = los_unit_vector - ego_unit_vector
+    #swap the direction sign to get the normal vector
+    drive_by_vector_one = np.array([ego_unit_vector[1], -ego_unit_vector[0]])
+    drive_by_vector_two = np.array([-ego_unit_vector[1], ego_unit_vector[0]])
     
-    drive_by_unit   =  -delta_vector
-    drive_by_vector = drive_by_unit * effector_range
+    #pick the one closer to the current position
+    distance_one = np.linalg.norm(current_position - (goal_position + drive_by_vector_one))
+    distance_two = np.linalg.norm(current_position - (goal_position + drive_by_vector_two))
     
+    if distance_one < distance_two:
+        drive_by_vector = drive_by_vector_one
+    else:
+        drive_by_vector = drive_by_vector_two
+        
     #apply to goal position
     drive_by_position = goal_position + drive_by_vector
     
     return drive_by_position
-    
 
-goal_position = np.array([10, -10])
-ego_position = np.array([10, 5])
-ego_heading = np.deg2rad(45)
+goal_position = np.array([10, 10])
+ego_position = np.array([5, 5])
+ego_heading = np.deg2rad(90)
 
 #compute the unit vector of the ego vehicle
 ego_unit_vector = np.array([np.cos(ego_heading), np.sin(ego_heading)])   
@@ -64,7 +68,7 @@ flipped_delta = -delta_vector
 effector_range = 5
 #flipped_delta = flipped_delta * 
 
-drive_by_position = find_drive_by_direction(goal_position, ego_position, ego_heading, effector_range)
+drive_by_position = find_driveby_direction(goal_position, ego_position, ego_heading, effector_range)
 print("Drive By Position: ", drive_by_position)
 
 #cross product of the two vectors
