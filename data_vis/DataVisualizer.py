@@ -190,9 +190,11 @@ class DataVisualizer():
         return solution
     
     
-    def animate_trajectory_3D(self, solution:dict, time_span:int=5,
+    def animate_trajectory_3D(self, solution:dict, use_time_span:bool=True, time_span:int=5,
                               animation_interval:int=20,
-                            time_list:np.ndarray=None):
+                            time_list:np.ndarray=None, 
+                            show_velocity:bool=False,
+                            vel_min:float=0, vel_max:float=1) -> tuple:
         """
         Animate the 3D trajectory
         """
@@ -200,31 +202,70 @@ class DataVisualizer():
         x = solution['x']
         y = solution['y']
         z = solution['z']
-        
+        velocity = solution['v_cmd']
         #animate lines 
         lines = []
         lines = [ax.plot([], [], [], 'r', label='3D Trajectory')[0]]
         
+        pts = []
+        pts =[ax.plot([], [], [], c='b', marker='o', label='Ego Position')]
+        
+    
         def init():
             for line in lines:
                 line.set_data([], [])
                 line.set_3d_properties([])
+            for pt in pts:
+                pass
+                # pt.set_data([], [])
+                # pt.set_3d_properties([])
             return lines
         
+        if show_velocity:
+            colorMap = plt.cm.get_cmap('jet')
+            #normalize the velocity
+            norm = plt.Normalize(vel_min, vel_max)
+            colors = colorMap(norm(velocity))
+            
+            
         def update(frame):
-            for line in lines:
+            for line,scatter in zip(lines,pts):
                 
                 if frame < time_span:
                     idx_interval = 0
                 else:
                     idx_interval = frame - time_span
                 
-                line.set_data(x[idx_interval:frame], y[idx_interval:frame])
-                line.set_3d_properties(z[idx_interval:frame])
-            return lines
+                if show_velocity:
+                    #set the color of the line based on the velocity
+                    line.set_color(colors[frame])
+                    #set scatter color
+                    # scatter.set_color(colors[frame])
+                
+                if use_time_span:
+                    line.set_data(x[idx_interval:frame], y[idx_interval:frame])
+                    line.set_3d_properties(z[idx_interval:frame])
+                    # scatter.set_data(x[frame], y[frame])
+                    # scatter.set_3d_properties(z[frame])
+                                            
+                else:
+                    line.set_data(x[:frame], y[:frame])
+                    line.set_3d_properties(z[:frame])
+                    # scatter.set_data(x[frame], y[frame])
+                    # scatter.set_3d_properties(z[frame])
+                                
+            return lines 
         
         ani = animation.FuncAnimation(fig, update, frames=len(x), interval=animation_interval,
                                       init_func=init, blit=True)
+
+        #show color bar for velocity
+        if show_velocity:
+            sm = plt.cm.ScalarMappable(cmap=colorMap, norm=norm)
+            sm.set_array([])
+            cbar = plt.colorbar(sm, ax=ax, label='Velocity m/s')
+            
+            
 
 
         return fig,ax,ani

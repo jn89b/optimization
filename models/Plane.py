@@ -72,7 +72,7 @@ class Plane():
         self.y_fdot = self.v_cmd * ca.cos(self.theta_f) * ca.sin(self.psi_f)
         self.z_fdot = -self.v_cmd * ca.sin(self.theta_f)
         
-        self.phi_fdot   = self.u_phi
+        self.phi_fdot   = self.u_phi 
         self.theta_fdot = self.u_theta
         
         #check if the denominator is zero
