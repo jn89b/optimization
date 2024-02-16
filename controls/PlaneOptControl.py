@@ -253,7 +253,6 @@ class PlaneOptControl(OptimalControlProblem):
                     threat_cost +=  distance_cost + dot_product_scale
                     
             total_threat_cost = self.dynamic_threat_params['weight'] * ca.sumsqr(threat_cost)
-            total_threat_cost = 0
 
         return total_threat_cost
 
@@ -317,13 +316,13 @@ class PlaneOptControl(OptimalControlProblem):
                                                                use_casadi=True)
             
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
-            vel_penalty = ca.if_else(total_factor > 0.5, 1, 0)   
+            vel_penalty = ca.if_else(total_factor > 0.03, 1, 0)   
             
             #penalize controls of velocity as we get closer to the target
             penalty = v_cmd * vel_penalty * v_cmd
             
             #as I get closer to the target I want to slow down my velocity
-            effector_cost += -effector_dmg + penalty #- (vel_penalty*v_cmd)
+            effector_cost += -effector_dmg - (vel_penalty*v_cmd)
 
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
@@ -401,12 +400,13 @@ class PlaneOptControl(OptimalControlProblem):
         return total_effector_cost        
         
     def compute_total_cost(self) -> ca.SX:
-        # self.cost += self.compute_dynamics_cost()
         if self.use_obstacle_avoidance:
+            # self.cost += self.compute_dynamics_cost()
             print('Using obstacle avoidance')
             self.cost += self.compute_obstacle_avoidance_cost()
             
         if self.use_dynamic_threats:
+            
             print('Using dynamic threats')
             self.cost += self.compute_dynamic_threats_cost(self.cost)
             # self.cost +=self.cost            
@@ -415,6 +415,7 @@ class PlaneOptControl(OptimalControlProblem):
             
             if self.Effector.effector_type == 'directional_3d':
                 print('Using directional pew pew')
+                self.cost += self.compute_dynamics_cost()
                 self.cost += self.compute_directional_pew_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':

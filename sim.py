@@ -121,7 +121,7 @@ seed = 2
 np.random.seed(seed)
 sim_iteration = 60
 idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 9
+N_obstacles = 5
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -136,8 +136,8 @@ USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
 USE_DIRECTIONAL_PEW_PEW = False
-USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
-USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = True
+USE_DIRECTIONAL_PEW_PEW_OBSTACLE = True
+USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
 ############   MPC   #####################
 if USE_BASIC:
     plane_mpc = PlaneOptControl(
@@ -255,7 +255,7 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 1, 
+            'weight': 100, 
             'radius_target': 2.0
             }
     
