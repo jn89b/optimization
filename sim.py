@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as ca
-
+import time 
 from matplotlib import pyplot as plt
 from models.Plane import Plane
 from drone_control.Threat import Threat
@@ -125,7 +125,7 @@ N_obstacles = 9
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
-SAVE_GIF = True
+SAVE_GIF = False
 
 OBX_MIN_RANGE = 75
 OBX_MAX_RANGE = 175
@@ -340,8 +340,10 @@ if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     print("Drive By Direction: ", driveby_direction)
 
 solution_history = []
+solution_times = []
 for i in range(sim_iteration):
-        
+    
+    start_time = time.time()
     if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
         driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                 init_states[5], 
@@ -352,6 +354,8 @@ for i in range(sim_iteration):
         solution_results = plane_mpc.get_solution(init_states, driveby_states, init_controls)
     else:
         solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
+    final_time = time.time() - start_time
+    solution_times.append(final_time)
     
     #next states
     next_x = solution_results['x'][idx_next_step]
@@ -457,5 +461,11 @@ if SAVE_GIF:
     #animate.save('directional_effector_obs.gif', writer='imagemagick', fps=60)
 
 fig, ax = data_vis.plot_controls(entire_solution, time_span, plane.n_controls)
+
+#solution times
+fig,ax = plt.subplots()
+ax.plot(solution_times)
+ax.set_title('Solution Times')
+ax.set_xlabel('Iteration')
 
 plt.show()

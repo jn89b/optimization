@@ -122,7 +122,8 @@ class OptimalControlProblem():
                 'print_level': 2,
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,
-                # 'linear_solver': 'ma27',
+                'hsllib': '/usr/local/lib/libcoinhsl.so', #need to set the optimizer library
+                'linear_solver': 'ma27',
                 # 'hessian_approximation': 'limited-memory',
             },
             'verbose': True,
