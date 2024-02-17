@@ -40,9 +40,14 @@ class DataVisualizer():
         return fig,ax
     
     @staticmethod
-    def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int) -> tuple:
+    def plot_controls(solution:dict, time_list:np.ndarray, n_controls:int,
+                      add_one_more:bool=False, additional_row:list=None,
+                      label_name:str=None) -> tuple:
         #plot controls
-        fig,ax = plt.subplots(nrows=n_controls, figsize=(10,10))
+        if add_one_more == True:
+            fig,ax = plt.subplots(nrows=n_controls+1, figsize=(10,10))
+        else:
+            fig,ax = plt.subplots(nrows=n_controls, figsize=(10,10))
         u_phi = np.rad2deg(solution['u_phi'])
         u_theta = np.rad2deg(solution['u_theta'])
         u_psi = np.rad2deg(solution['u_psi'])
@@ -59,12 +64,16 @@ class DataVisualizer():
         ax[1].plot(time_list, u_theta, 'g', label='u_theta')
         ax[2].plot(time_list, u_psi, 'b', label='u_psi'), 
         ax[3].plot(time_list, v_cmd, 'k', label='v_cmd')
+        ax[4].plot(time_list, additional_row, 'm', label=label_name)
 
         for ax in ax:
             ax.set_ylabel('Control')
             ax.set_xlabel('Time (s)')
             ax.legend()
             ax.grid()
+        
+        # if add_one_more:
+        #     ax[4].set_ylabel(label_name)
         
         return fig,ax 
 

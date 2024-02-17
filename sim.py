@@ -98,7 +98,7 @@ final_states = np.array([250, #x
 init_controls = np.array([0, 
                           0, 
                           0, 
-                          control_constraints['v_cmd_max']])
+                          control_constraints['v_cmd_min']])
 
 goal_params = {
     'x': [final_states[0]],
@@ -119,9 +119,9 @@ goal_color = 'green'
 #### SET YOUR CONFIGURATIONS HERE #######
 seed = 2
 np.random.seed(seed)
-sim_iteration = 60
+sim_iteration = 30
 idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 5
+N_obstacles = 20
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -132,12 +132,15 @@ OBX_MAX_RANGE = 175
 OBX_MIN_RADIUS = 5
 OBX_MAX_RADIUS = 20
 
+get_cost = True
+
 USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
-USE_DIRECTIONAL_PEW_PEW = False
-USE_DIRECTIONAL_PEW_PEW_OBSTACLE = True
+USE_DIRECTIONAL_PEW_PEW = True
+USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
 USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
+
 ############   MPC   #####################
 if USE_BASIC:
     plane_mpc = PlaneOptControl(
@@ -145,8 +148,7 @@ if USE_BASIC:
         state_constraints, 
         mpc_params,     
         plane
-    )
-    
+    )    
 elif USE_OBSTACLE:
     obs_x = np.random.randint(OBX_MIN_RADIUS, OBX_MAX_RANGE, N_obstacles)
     obs_y = np.random.randint(OBX_MIN_RANGE, OBX_MAX_RANGE, N_obstacles)
@@ -172,7 +174,8 @@ elif USE_TIME_CONSTRAINT:
     mpc_params = {
         'N': 30,
         'Q': ca.diag([1E-2, 1E-2, 1E-2, 0, 0, 0.0, 0.0]),
-        'R': ca.diag([0.01, 0.01, 0.01, 0.01]),
+        'R': ca.diag([0.01, 0.01, 0.01, 0.01]),                # self.cost += self.compute_dynamics_cost()
+
         'dt': 0.1
     }
     plane_mpc = PlaneOptControl(
@@ -193,11 +196,11 @@ elif USE_DIRECTIONAL_PEW_PEW :
     }
     
     effector_config = {
-            'effector_range': 50, 
+            'effector_range': 100, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 100, 
+            'weight': 10, 
             'radius_target': 0.5
             }
     
@@ -286,7 +289,7 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     }
     
     effector_config = {
-            'effector_range': 10, 
+            'effector_range': 50, 
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
@@ -351,9 +354,11 @@ for i in range(sim_iteration):
         driveby_states = final_states.copy()        
         driveby_states[0] = driveby_direction[0]
         driveby_states[1] = driveby_direction[1]
-        solution_results = plane_mpc.get_solution(init_states, driveby_states, init_controls)
+        solution_results = plane_mpc.get_solution(init_states, driveby_states, init_controls,
+                                                  get_cost=get_cost)
     else:
-        solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
+        solution_results = plane_mpc.get_solution(init_states, final_states, init_controls,
+                                                  get_cost=get_cost)
     final_time = time.time() - start_time
     solution_times.append(final_time)
     
@@ -378,20 +383,37 @@ for i in range(sim_iteration):
     print("init_controls: ", init_controls)
     
     #prune out the solution to the next step
-    solution_results = {
-        'x': solution_results['x'][:idx_next_step],
-        'y': solution_results['y'][:idx_next_step],
-        'z': solution_results['z'][:idx_next_step],
-        'phi': solution_results['phi'][:idx_next_step],
-        'theta': solution_results['theta'][:idx_next_step],
-        'psi': solution_results['psi'][:idx_next_step],
-        'v': solution_results['v'][:idx_next_step],
-        'u_phi': solution_results['u_phi'][:idx_next_step],
-        'u_theta': solution_results['u_theta'][:idx_next_step],
-        'u_psi': solution_results['u_psi'][:idx_next_step],
-        'v_cmd': solution_results['v_cmd'][:idx_next_step]
-    }
-        
+    if get_cost:
+        solution_results = {
+            'x': solution_results['x'][:idx_next_step],
+            'y': solution_results['y'][:idx_next_step],
+            'z': solution_results['z'][:idx_next_step],
+            'phi': solution_results['phi'][:idx_next_step],
+            'theta': solution_results['theta'][:idx_next_step],
+            'psi': solution_results['psi'][:idx_next_step],
+            'v': solution_results['v'][:idx_next_step],
+            'u_phi': solution_results['u_phi'][:idx_next_step],
+            'u_theta': solution_results['u_theta'][:idx_next_step],
+            'u_psi': solution_results['u_psi'][:idx_next_step],
+            'v_cmd': solution_results['v_cmd'][:idx_next_step],
+            'cost': solution_results['cost'],
+            'grad': solution_results['grad']
+        }
+    else:
+        solution_results = {
+            'x': solution_results['x'][:idx_next_step],
+            'y': solution_results['y'][:idx_next_step],
+            'z': solution_results['z'][:idx_next_step],
+            'phi': solution_results['phi'][:idx_next_step],
+            'theta': solution_results['theta'][:idx_next_step],
+            'psi': solution_results['psi'][:idx_next_step],
+            'v': solution_results['v'][:idx_next_step],
+            'u_phi': solution_results['u_phi'][:idx_next_step],
+            'u_theta': solution_results['u_theta'][:idx_next_step],
+            'u_psi': solution_results['u_psi'][:idx_next_step],
+            'v_cmd': solution_results['v_cmd'][:idx_next_step]
+        }
+    
     solution_history.append(solution_results)
 
 #%% 
@@ -452,7 +474,17 @@ ax.set_zlabel('Z')
 #tight layout
 fig.tight_layout()
 
+if get_cost:
+    fig,ax = plt.subplots()
+    ax.plot(entire_solution['cost'], marker='o')
+    ax.set_title('Cost')
+    ax.set_xlabel('Iteration')
 
+    #fig,ax = plt.subplots()
+    #ax.plot(entire_solution['grad'], marker='o')
+    #ax.set_title('Gradient')
+    #ax.set_xlabel('Iteration')
+    
 folder_dir = 'videos/mp4/'
 import matplotlib.animation as animation 
 writervideo = animation.FFMpegWriter(fps=60) 
@@ -460,11 +492,25 @@ if SAVE_GIF:
     animate.save(folder_dir+title_video+'.mp4', writer=writervideo) 
     #animate.save('directional_effector_obs.gif', writer='imagemagick', fps=60)
 
-fig, ax = data_vis.plot_controls(entire_solution, time_span, plane.n_controls)
+
+##compute the distasnce from goal for each iteration
+distance_from_goal = []
+for i in range(len(entire_solution['x'])):
+    distance = np.linalg.norm([entire_solution['x'][i] - final_states[0],
+                               entire_solution['y'][i] - final_states[1],
+                               entire_solution['z'][i] - final_states[2]])
+    distance_from_goal.append(distance)
+    
+fig, ax = data_vis.plot_controls(entire_solution, time_span, plane.n_controls,
+                                 add_one_more=True, additional_row=distance_from_goal,
+                                 label_name='Distance from Goal')
+
+#SHARE ax
+ax.sharex(ax)
 
 #solution times
 fig,ax = plt.subplots()
-ax.plot(solution_times)
+ax.plot(solution_times, marker='o')
 ax.set_title('Solution Times')
 ax.set_xlabel('Iteration')
 

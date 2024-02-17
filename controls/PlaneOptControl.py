@@ -266,6 +266,9 @@ class PlaneOptControl(OptimalControlProblem):
 
         total_effector_cost = 0
         effector_cost = 0
+        
+        v_max = self.control_constraints['v_cmd_max']
+        v_min = self.control_constraints['v_cmd_min']
 
         for i in range(self.N):
             x_pos = self.X[0, i]
@@ -298,6 +301,7 @@ class PlaneOptControl(OptimalControlProblem):
             #these exponential functions will be used to account for the distance and angle of the target
             #the closer we are to the target the more the distance factor will be close to 1
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
+            #error_dist = dtarget/self.Effector.effector_range
             
             #the closer we are to the target the more the angle factor will be close to 1
             error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
@@ -310,19 +314,29 @@ class PlaneOptControl(OptimalControlProblem):
 
             #we multiply all three factors if any one of them are close to 0 the total_factor 
             #will then be close to 0
-            total_factor = error_dist_factor #* error_theta_factor *  error_psi_factor
+            total_factor = error_dist_factor * error_psi_factor #* error_theta_factor
             effector_dmg = self.Effector.compute_power_density(dtarget, 
                                                                total_factor, 
                                                                use_casadi=True)
             
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
-            vel_penalty = ca.if_else(total_factor > 0.03, 1, 0)   
-            
-            #penalize controls of velocity as we get closer to the target
-            penalty = v_cmd * vel_penalty * v_cmd
-            
-            #as I get closer to the target I want to slow down my velocity
-            effector_cost += -effector_dmg - (vel_penalty*v_cmd)
+                   
+            #if im far away allow me to go faster otherwise slow down
+            weight = ca.if_else(dtarget < self.Effector.effector_range, 10, 0)        
+                        
+            alpha = 0.5
+            quad_v_max = (v_cmd - v_max)**2
+            quad_v_min = (v_cmd - v_min)**2
+    
+            #if im far away allow me to go faster otherwise slow down
+            vel_penalty = ca.if_else(dtarget >= self.Effector.effector_range, 
+                                     quad_v_max, quad_v_min)
+        
+            effector_cost +=  dtarget + vel_penalty
+            #time_on_target = -error_dist_factor/v_cmd
+            #effector_cost +=  time_on_target #-error_dist_factor #+ 0*v_cmd
+    
+            # effector_cost += -error_dist_factor + (vel_penalty*v_cmd)
 
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
@@ -335,6 +349,45 @@ class PlaneOptControl(OptimalControlProblem):
         
         return total_effector_cost
     
+    def compute_time_on_target_cost(self) -> ca.SX:
+        """
+        General idea is if I'm off target speed up
+        if I'm on target slow down
+        """
+        n_states = self.model_casadi.n_states
+        target_location = self.P[n_states:]
+        
+        v_max = self.control_constraints['v_cmd_max']
+        v_min = self.control_constraints['v_cmd_min']
+        
+        total_tot_cost = 0
+        tot_cost = 0
+        
+        for i in range(self.N):
+            x_pos = self.X[0, i]
+            y_pos = self.X[1, i]
+            z_pos = self.X[2, i]
+            v_cmd = self.U[3, i]
+            
+            dx = target_location[0] - x_pos
+            dy = target_location[1] - y_pos
+            dz = target_location[2] - z_pos
+            
+            dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
+            
+            quad_v_max = (v_cmd - v_max)**2
+            quad_v_min = (v_cmd - v_min)**2
+            
+            #if im far away allow me to go faster otherwise slow down
+            vel_penalty = ca.if_else(dtarget >= self.Effector.effector_range, 
+                                     quad_v_max, quad_v_min)
+            
+            tot_cost += vel_penalty
+            
+        total_tot_cost = self.pew_pew_params['weight'] * ca.sum2(tot_cost)
+        
+        return total_tot_cost
+
     def compute_omni_pew_cost(self) -> ca.SX:
         """
         This cost function will be used to compute the cost of an omnidirectional effector
@@ -415,8 +468,9 @@ class PlaneOptControl(OptimalControlProblem):
             
             if self.Effector.effector_type == 'directional_3d':
                 print('Using directional pew pew')
-                self.cost += self.compute_dynamics_cost()
+                # self.cost += self.compute_dynamics_cost()
                 self.cost += self.compute_directional_pew_cost()
+                # self.cost += self.compute_time_on_target_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':
                 print('Using omni pew pew')
@@ -510,28 +564,54 @@ class PlaneOptControl(OptimalControlProblem):
 
         return x, u
         
-    def get_solution(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> np.ndarray:
+    def get_solution(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray,
+                     get_cost:bool=False) -> np.ndarray:
         """
         This function solves the optimization problem and returns the solution
         in a dictionary format based on the state and control variables
         """
         solution = self.solve(x0, xF, u0)
+        
+        #P = x0 and xF
+        p = ca.vertcat(x0, xF)
+
         x, u = self.unpack_solution(solution)
-        solution_results = {
-            'x': x[0,:].full().T[:,0],
-            'y': x[1,:].full().T[:,0],
-            'z': x[2,:].full().T[:,0],
-            'phi': x[3,:].full().T[:,0],
-            'theta': x[4,:].full().T[:,0],
-            'psi': x[5,:].full().T[:,0],
-            'v': x[6,:].full().T[:,0],
-            'u_phi': u[0,:].full().T[:,0],
-            'u_theta': u[1,:].full().T[:,0],
-            'u_psi': u[2,:].full().T[:,0],
-            'v_cmd': u[3,:].full().T[:,0]
-        }
+        
+        if get_cost:
+            nlp_grad_f = self.solver.get_function('nlp_grad_f')
+            [f, df] = nlp_grad_f(solution['x'], p)
+            solution_results = {
+                'x': x[0,:].full().T[:,0],
+                'y': x[1,:].full().T[:,0],
+                'z': x[2,:].full().T[:,0],
+                'phi': x[3,:].full().T[:,0],
+                'theta': x[4,:].full().T[:,0],
+                'psi': x[5,:].full().T[:,0],
+                'v': x[6,:].full().T[:,0],
+                'u_phi': u[0,:].full().T[:,0],
+                'u_theta': u[1,:].full().T[:,0],
+                'u_psi': u[2,:].full().T[:,0],
+                'v_cmd': u[3,:].full().T[:,0],
+                'cost': f,
+                'grad': df
+            }
+            return solution_results
+        else:
+            solution_results = {
+                'x': x[0,:].full().T[:,0],
+                'y': x[1,:].full().T[:,0],
+                'z': x[2,:].full().T[:,0],
+                'phi': x[3,:].full().T[:,0],
+                'theta': x[4,:].full().T[:,0],
+                'psi': x[5,:].full().T[:,0],
+                'v': x[6,:].full().T[:,0],
+                'u_phi': u[0,:].full().T[:,0],
+                'u_theta': u[1,:].full().T[:,0],
+                'u_psi': u[2,:].full().T[:,0],
+                'v_cmd': u[3,:].full().T[:,0]
+            }
                     
-        return solution_results
+            return solution_results
     
     def init_optimization_problem(self):
         if self.is_initialized:
