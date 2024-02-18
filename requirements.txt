@@ -1,5 +1,4 @@
 asttokens==2.4.1
-casadi==3.6.4
 cloudpickle==3.0.0
 comm==0.2.1
 contourpy==1.2.0
@@ -15,6 +14,7 @@ fonttools==4.47.2
 fsspec==2023.12.2
 future==0.18.3
 gpytorch==1.11
+imageio==2.34.0
 ipykernel==6.29.0
 ipython==8.21.0
 jaxtyping==0.2.25

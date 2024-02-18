@@ -120,16 +120,17 @@ class OptimalControlProblem():
                 # 'max_cpu_time': 0.15,
                 # 'max_wall_time': 0.15,
                 'print_level': 2,
+                'warm_start_init_point': 'yes', #use the previous solution as initial guess
                 # 'acceptable_tol': 1e-2,
                 # 'acceptable_obj_change_tol': 1e-2,
                 'hsllib': '/usr/local/lib/libcoinhsl.so', #need to set the optimizer library
                 # 'hsllib': '/usr/local/lib/libfakemetis.so', #need to set the optimizer library
                 'linear_solver': 'ma27',
-                # 'hessian_approximation': 'limited-memory',
+                'hessian_approximation': 'limited-memory', # Changes the hessian calculation for a first order approximation.
             },
             'verbose': True,
             # 'jit':True,
-            'print_time': 1,
+            'print_time': 2,    
             'expand': 1
         }
 
