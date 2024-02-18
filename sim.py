@@ -44,7 +44,7 @@ def find_driveby_point(goal_position, current_los):
 ###### INITIAL CONFIGURATIONS ########
 mpc_params = {
     'N': 30,
-    'Q': ca.diag([1E-3, 1E-3, 1E-3, 0, 0, 0.0, 0.0]),
+    'Q': ca.diag([1E-2, 1E-2, 1E-2, 0, 0, 0.0, 0.0]),
     'R': ca.diag([0.01, 0.01, 0.01, 0.01]),
     'dt': 0.1
 }
@@ -82,7 +82,7 @@ init_states = np.array([0, #x
                         0, #z
                         0, #phi
                         0, #theta
-                        np.deg2rad(70), #psi# 3  \
+                        np.deg2rad(0), #psi# 3  \
                         5 #airspeed
                         ]) 
 
@@ -119,9 +119,9 @@ goal_color = 'green'
 #### SET YOUR CONFIGURATIONS HERE #######
 seed = 2
 np.random.seed(seed)
-sim_iteration = 30
+sim_iteration = 55
 idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 20
+N_obstacles = 10
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -133,7 +133,7 @@ OBX_MIN_RADIUS = 5
 OBX_MAX_RADIUS = 20
 
 get_cost = True
-
+# 
 USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
@@ -196,7 +196,7 @@ elif USE_DIRECTIONAL_PEW_PEW :
     }
     
     effector_config = {
-            'effector_range': 100, 
+            'effector_range': 200, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
@@ -237,16 +237,9 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
         'dt': 0.1
     }
 
-    #These weights are not good for the directional effector
-    # mpc_params = {
-    #     'N': 30,
-    #     'Q': ca.diag([1E-1, 1E-1, 1E-1, 0, 0, 0.0, 0.0]),
-    #     'R': ca.diag([0.01, 0.01, 0.01, 0.01]),
-    #     'dt': 0.1
-    # }
 
     obs_avoid_params = {
-        'weight': 0,
+        'weight': 0.1,
         'safe_distance': 3.0,
         'x': obs_x,
         'y': obs_y,
@@ -254,7 +247,7 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
     }
     
     effector_config = {
-            'effector_range': 30, 
+            'effector_range': 100, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
@@ -284,7 +277,7 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     mpc_params = {
         'N': 30,
         'Q': ca.diag([Q_val, Q_val, Q_val, 0, 0, 0.0, 0.0]),
-        'R': ca.diag([0.1, 0.1, 0.1, 1.0]),
+        'R': ca.diag([0.1, 0.1, 0.1, 0.1]),
         'dt': 0.1
     }
     

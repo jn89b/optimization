@@ -138,6 +138,7 @@ class PlaneOptControl(OptimalControlProblem):
                 cost += cost \
                         + (states - x_final).T @ Q @ (states - x_final) \
                         + controls.T @ R @ controls
+                # cost += cost + controls.T @ R @ controls
                                         
         #add terminal cost
         else:
@@ -171,10 +172,11 @@ class PlaneOptControl(OptimalControlProblem):
         
         x_position = self.X[0,:]
         y_position = self.X[1,:]
-        
+        psi = self.X[5,:]
         total_avoidance_cost = 0
         avoidance_cost = 0
         for i,x in enumerate(obs_x_vector):
+
             obs_x = obs_x_vector[i]
             obs_y = obs_y_vector[i]
             obs_radii = obs_radii_vector[i]
@@ -184,11 +186,20 @@ class PlaneOptControl(OptimalControlProblem):
             diff = obstacle_distance + obs_radii + safe_distance
             #obstacle_distance = 1/obstacle_distance
             avoidance_cost += ca.sum2(diff)
+            v_cmd = self.U[3, :]
+            
+            #want to slow down as we get closer to the obstacle
+            #avoidance_cost = diff[:-1]/v_cmd
+            los_theta = ca.atan2(obs_y - y_position, obs_x - x_position)
+            diff_psi = -los_theta + psi
+            
+            #maximize the heading angle difference
+            avoidance_cost += ca.sum2(diff_psi + diff)
             
             self.g = ca.vertcat(self.g, diff[:-1].T)
         
         # total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
-        total_avoidance_cost = 0
+        total_avoidance_cost = obs_avoid_weight * ca.sum2(avoidance_cost)
         
         print('Obstacle avoidance cost computed')
         return total_avoidance_cost
@@ -295,9 +306,7 @@ class PlaneOptControl(OptimalControlProblem):
             los_target = ca.atan2(dy, dx)
             
             #slow down cost  
-            # acceleration = (v_cmd_next - v_cmd) / self.dt #/ dtarget
-            # acceleration_cost = acceleration#ca.if_else(acceleration < 0, -1, acceleration_cost)
-                
+                            
             #these exponential functions will be used to account for the distance and angle of the target
             #the closer we are to the target the more the distance factor will be close to 1
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
@@ -319,25 +328,20 @@ class PlaneOptControl(OptimalControlProblem):
                                                                total_factor, 
                                                                use_casadi=True)
             
+            #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
-                   
-            #if im far away allow me to go faster otherwise slow down
-            weight = ca.if_else(dtarget < self.Effector.effector_range, 10, 0)        
-                        
-            alpha = 0.5
             quad_v_max = (v_cmd - v_max)**2
+            #quad_v_min = (v_cmd - v_min)**2
             quad_v_min = (v_cmd - v_min)**2
-    
-            #if im far away allow me to go faster otherwise slow down
+            #if im far away allow me to go faster otherwise slow down, 
             vel_penalty = ca.if_else(dtarget >= self.Effector.effector_range, 
                                      quad_v_max, quad_v_min)
         
-            effector_cost +=  dtarget + vel_penalty
-            #time_on_target = -error_dist_factor/v_cmd
-            #effector_cost +=  time_on_target #-error_dist_factor #+ 0*v_cmd
-    
-            # effector_cost += -error_dist_factor + (vel_penalty*v_cmd)
-
+            #everything else
+            controls_cost = ca.sumsqr(self.U[:3, i])
+            
+            effector_cost +=  dtarget + vel_penalty + controls_cost - effector_dmg
+            
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
             diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance 
@@ -446,7 +450,7 @@ class PlaneOptControl(OptimalControlProblem):
                                                                total_factor, 
                                                                use_casadi=True)
             # negative because we want to minimize
-            effector_cost += -effector_dmg - dot_product
+            effector_cost += error_dist_factor - dot_product
                     
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
         
@@ -474,8 +478,13 @@ class PlaneOptControl(OptimalControlProblem):
 
             elif self.Effector.effector_type == 'omnidirectional':
                 print('Using omni pew pew')
+                self.cost += self.compute_dynamics_cost()
                 self.cost += self.compute_omni_pew_cost()
                 
+        else:
+            self.cost += self.compute_dynamics_cost()
+            
+
         return self.cost
 
     def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray, 
