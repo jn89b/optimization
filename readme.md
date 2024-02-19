@@ -4,7 +4,7 @@
 - Install Third-Party HSL from source
 
 ## Build Casadi from Source
-This repo requires you to build casadi from source, luckily all the commands needed to set up the casadi python package is set up in the install_tools/install_casadi_source.sh script to run simply do the following:
+This repo requires you to build casadi from source, luckily all the commands needed to set up the casadi python package is done with the install_tools/install_casadi_source.sh script. To run simply do the following:
 
 ```
 cd install_tools #change directory to install tools

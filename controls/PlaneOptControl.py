@@ -2,7 +2,7 @@ from controls.OptimalControl import OptimalControlProblem
 from controls.Effector import Effector
 import casadi as ca
 import numpy  as np
-
+import time
 
 class PlaneOptControl(OptimalControlProblem):
     def __init__(self, 
@@ -137,23 +137,23 @@ class PlaneOptControl(OptimalControlProblem):
                 controls = self.U[:, k]
                 cost += cost \
                         + (states - x_final).T @ Q @ (states - x_final) \
-                        + controls.T @ R @ controls
+                        # + controls.T @ R @ controls
                 # cost += cost + controls.T @ R @ controls
                                         
         #add terminal cost
         else:
             # print('Using a time constraint cost function')
             if self.use_time_intervals:
-                pass
+                # pass
                 # print('Using time intervals for cost function')
-                # for k in range(self.N):
-                #     if k % self.time_constraint_idx == 0:
-                #         states = self.X[:, k]
-                #         controls = self.U[:, k]
-                #         terminal_cost = (self.X[:, k] - x_final).T @ Q @ \
-                #         (self.X[:, k] - x_final)
-                #         #divide cost by velocity
-                #         cost += (terminal_cost / v_cmd[k])
+                for k in range(self.N):
+                    if k % self.time_constraint_idx == 0:
+                        states = self.X[:, k]
+                        controls = self.U[:, k]
+                        terminal_cost = (self.X[:, k] - x_final).T @ Q @ \
+                        (self.X[:, k] - x_final)
+                        #divide cost by velocity
+                        cost += (terminal_cost / v_cmd[k])
             else:
                 time_constraint_idx = self.time_constraint_idx
                 terminal_cost = (self.X[:, time_constraint_idx] - x_final).T @ Q @ \
@@ -183,7 +183,9 @@ class PlaneOptControl(OptimalControlProblem):
             # obstacle_constraints = self.opti.variable(self.N+1)
             obstacle_distance = -ca.sqrt((obs_x - x_position)**2 + \
                 (obs_y - y_position)**2)
+            
             diff = obstacle_distance + obs_radii + safe_distance
+            
             #obstacle_distance = 1/obstacle_distance
             avoidance_cost += ca.sum2(diff)
             v_cmd = self.U[3, :]
@@ -199,7 +201,10 @@ class PlaneOptControl(OptimalControlProblem):
             self.g = ca.vertcat(self.g, diff[:-1].T)
         
         # total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
-        total_avoidance_cost = obs_avoid_weight * ca.sum2(avoidance_cost)
+        if self.use_pew_pew:
+            total_avoidance_cost = 0
+        else:
+            total_avoidance_cost = obs_avoid_weight * ca.sum2(avoidance_cost)
         
         print('Obstacle avoidance cost computed')
         return total_avoidance_cost
@@ -333,14 +338,13 @@ class PlaneOptControl(OptimalControlProblem):
             quad_v_max = (v_cmd - v_max)**2
             #quad_v_min = (v_cmd - v_min)**2
             quad_v_min = (v_cmd - v_min)**2
-            #if im far away allow me to go faster otherwise slow down, 
-            vel_penalty = ca.if_else(dtarget >= self.Effector.effector_range, 
+            vel_penalty = ca.if_else(error_dist_factor <= 0.6, 
                                      quad_v_max, quad_v_min)
-        
-            #everything else
+
+            #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
             
-            effector_cost +=  dtarget + vel_penalty + controls_cost - effector_dmg
+            effector_cost +=  dtarget - effector_dmg**2 + vel_penalty + controls_cost
             
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']
@@ -407,6 +411,8 @@ class PlaneOptControl(OptimalControlProblem):
         target_z = self.obs_params['z'][-1]
         radii = self.obs_params['radii'][-1]
 
+        driveby_location = self.P[n_states:]
+
         for i in range(self.N):
             x_pos = self.X[0, i]
             y_pos = self.X[1, i]
@@ -421,6 +427,14 @@ class PlaneOptControl(OptimalControlProblem):
             dx = target_x - x_pos
             dy = target_y - y_pos
             dz = target_z - z_pos
+            
+            ###### DIRECTIONAL EFFECTOR COST FUNCTION MAXIMIZE TIME ON TARGET BY SLOWING DOWN APPROACH######
+            #right now this is set up for the directional effector
+            dx_driveby = driveby_location[0] - x_pos
+            dy_driveby = driveby_location[1] - y_pos
+            dz_driveby = driveby_location[2] - z_pos
+            
+            d_drivbeby = ca.sqrt((dx_driveby)**2 + (dy_driveby)**2 + (dz_driveby)**2)
                     
             dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
 
@@ -439,20 +453,22 @@ class PlaneOptControl(OptimalControlProblem):
             # the idea of this is we want to be as perpendicular as possible to the target 
             # this will use the gaussian cuve where the peak is 1 if the dot product is 
             # 0
-            #directional_cost = self.gaussian_fn(dot_product)
+            directional_cost = self.gaussian_fn(dot_product)
                 
             #this value will be close to 1 the closer we are in range to the target            
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
             
-            total_factor = error_dist_factor 
+            total_factor = error_dist_factor
+            
             
             effector_dmg = self.Effector.compute_power_density(dtarget, 
                                                                total_factor, 
                                                                use_casadi=True)
             # negative because we want to minimize
-            effector_cost += error_dist_factor - dot_product
+            effector_cost += -effector_dmg + dot_product #+ effector_dmg**2
                     
-        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
+        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_dmg)
+        # total_effector_cost = 0
         
         return total_effector_cost        
         
@@ -507,8 +523,8 @@ class PlaneOptControl(OptimalControlProblem):
                 num_obstacles = len(self.obs_params['x']) + 1
                 num_constraints = num_obstacles * self.N
                 lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
-                # -infinity to minimum marign value for obs avoidance  
-                lbg[n_states*self.N+n_states:] = -ca.inf                 
+                # -infinity to minimum margin value for obs avoidance  
+                lbg[n_states*self.N+n_states:] = -ca.inf    
                 # constraints upper bound
                 ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
                 #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
@@ -517,8 +533,8 @@ class PlaneOptControl(OptimalControlProblem):
                 num_obstacles = len(self.obs_params['x'])
                 num_constraints = num_obstacles * self.N
                 lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
-                # -infinity to minimum marign value for obs avoidance  
-                lbg[n_states*self.N+n_states:] = -ca.inf 
+                # -infinity to minimum margin value for obs avoidance
+                lbg[n_states*self.N+n_states:] = -ca.inf
                 
                 # constraints upper bound
                 ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
@@ -580,7 +596,7 @@ class PlaneOptControl(OptimalControlProblem):
         in a dictionary format based on the state and control variables
         """
         solution = self.solve(x0, xF, u0)
-        
+        end_time = time.time()
         #P = x0 and xF
         p = ca.vertcat(x0, xF)
 
@@ -604,7 +620,7 @@ class PlaneOptControl(OptimalControlProblem):
                 'cost': f,
                 'grad': df
             }
-            return solution_results
+            return solution_results,end_time
         else:
             solution_results = {
                 'x': x[0,:].full().T[:,0],
@@ -619,15 +635,10 @@ class PlaneOptControl(OptimalControlProblem):
                 'u_psi': u[2,:].full().T[:,0],
                 'v_cmd': u[3,:].full().T[:,0]
             }
-                    
-            return solution_results
-    
-    def init_optimization_problem(self):
-        if self.is_initialized:
-            print('Optimization problem already initialized')
-            self.g = []
-            self.cost = 0
+            return solution_results,end_time
             
+            
+    def init_optimization_problem(self) -> None:
         self.update_bound_constraints()
         self.cost = self.compute_total_cost()
         self.init_solver(self.cost)

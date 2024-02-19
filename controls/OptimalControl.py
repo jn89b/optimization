@@ -12,6 +12,9 @@ class OptimalControlProblem():
         self.model_casadi = model_casadi
         self.g = []        
         self.init_decision_variables()
+        self.integrator = self.get_casadi_integrator()
+        self.sample_shot = self.sample_shot_trajectory()
+        
         self.define_bound_constraints()
         self.set_dynamic_constraints()
         self.solver = None
@@ -58,25 +61,81 @@ class OptimalControlProblem():
         """update the bound constraints"""
         raise NotImplementedError('Must implement this function:', self.update_bound_constraints.__name__)
 
+    def get_casadi_integrator(self) -> ca.Function:
+        """
+        get one step integrator for the system utilizes Runge-Kutta 4th order
+        """
+        states = ca.SX.sym('states', self.model_casadi.n_states)
+        controls = ca.SX.sym('controls', self.model_casadi.n_controls)
+        
+        k1 = self.model_casadi.function(states, controls)
+        k2 = self.model_casadi.function(states + self.dt/2 * k1, controls)
+        k3 = self.model_casadi.function(states + self.dt/2 * k2, controls)
+        k4 = self.model_casadi.function(states + self.dt * k3, controls)
+        state_next_rk4 = states + self.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+        
+        integrator = ca.Function('integrator', [states, controls],
+                                [state_next_rk4], ['states', 'controls'], ['x_next'])
+        
+        return integrator
+    
+
+    def sample_shot_trajectory(self) -> ca.Function:
+        """
+        shoot a trajectory using Runge-Kutta 4th order
+        """
+        states = ca.SX.sym('states', self.model_casadi.n_states, self.N + 1)
+        controls = ca.SX.sym('controls', self.model_casadi.n_controls, self.N)
+        X_next = ca.SX.sym('X_next', self.model_casadi.n_states)
+        
+
+        for k in range(self.N):
+            X_next = self.integrator(states[:, k], controls[:, k])
+
+            self.g = ca.vertcat(self.g, states[:, k+1] - X_next)
+
+        sample_shot = ca.Function('sample_shot', 
+                                  [states, controls], 
+                                  [X_next], ['X', 'U'], ['X_next'])
+
+        return sample_shot
+        
     def set_dynamic_constraints(self) -> None:
         #dynamic constraints
         #equality constraint for initial condition
-        
         self.g = self.X[:, 0] - self.P[:self.model_casadi.n_states]                  
         for k in range(self.N):
-            states = self.X[:, k]
-            controls = self.U[:, k]
-            k1 = self.model_casadi.function(states, controls)
-            k2 = self.model_casadi.function(states + self.dt/2 * k1, controls)
-            k3 = self.model_casadi.function(states + self.dt/2 * k2, controls)
-            k4 = self.model_casadi.function(states + self.dt * k3, controls)
-            state_next_rk4 = states + self.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
-            #constraint to make sure our dynamics are satisfied
+            state_next_rk4 = self.integrator(self.X[:, k], self.U[:, k])
+            # state_next_rk4 = self.integrator_fn(self.X[:, k], self.U[:, k])
+            
+            # states = self.X[:, k]
+            # controls = self.U[:, k]
+            # k1 = self.model_casadi.function(states, controls)
+            # k2 = self.model_casadi.function(states + self.dt/2 * k1, controls)
+            # k3 = self.model_casadi.function(states + self.dt/2 * k2, controls)
+            # k4 = self.model_casadi.function(states + self.dt * k3, controls)
+            # state_next_rk4 = states + self.dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+            # constraint to make sure our dynamics are satisfied
             self.g = ca.vertcat(self.g, self.X[:, k+1] - state_next_rk4) 
+        
+        # self.g = self.X[:,0] - self.P[:self.model_casadi.n_states]        
+        # Xn = self.sample_shot.map(self.N, 'openmp')(self.X, self.U)
+        # for k in range(self.N):
+        #     state_next_rk4 = Xn[:, k]
+        #     self.g = ca.vertcat(self.g, self.X[:, k+1] - state_next_rk4)
+            
+
+        #self.g = ca.vertcat(self.g, gaps.T)
+        
+        # g = ca.vertcat(self.X[:, 0] - self.P[:self.model_casadi.n_states],
+        #                   ca.reshape(Xn, -1, 1) - self.X[:, 1:])
+        # self.g = g
+        print('Dynamic constraints set')
+        
         
     def compute_dynamics_cost(self, time_constraint:bool=False) -> ca.SX:
         """compute the cost function"""
-        n_states = self.model_casadi.n_states
+        n_states = self.model_casadi.n_states   
         Q = self.Q
         R = self.R
         P = self.P
@@ -92,7 +151,8 @@ class OptimalControlProblem():
                         + controls.T @ R @ controls
         #add terminal cost
         else:
-            terminal_cost = (self.X[:, self.N] - x_final).T @ Q @ (self.X[:, self.N] - x_final)
+            terminal_cost = (self.X[:, self.N] - x_final).T @ Q \
+                @ (self.X[:, self.N] - x_final)
             #divide cost by velocity 
             cost += (terminal_cost / v_cmd[-1])
         
@@ -103,7 +163,9 @@ class OptimalControlProblem():
     def compute_total_cost(self) -> ca.SX:
         """compute the total cost function"""
         # return self.compute_dynamics_cost(x_final)
-        raise NotImplementedError('Must implement this function:', self.compute_total_cost.__name__)
+        raise NotImplementedError(
+            'Must implement this function:', 
+            self.compute_total_cost.__name__)
     
     
     def init_solver(self, cost_fn:ca.SX) -> None:
@@ -116,7 +178,7 @@ class OptimalControlProblem():
         }
         solver_opts = {
             'ipopt': {
-                'max_iter': 100,
+                # 'max_iter': 150,
                 # 'max_cpu_time': 0.15,
                 # 'max_wall_time': 0.15,
                 'print_level': 2,
@@ -126,7 +188,7 @@ class OptimalControlProblem():
                 'hsllib': '/usr/local/lib/libcoinhsl.so', #need to set the optimizer library
                 # 'hsllib': '/usr/local/lib/libfakemetis.so', #need to set the optimizer library
                 'linear_solver': 'ma27',
-                'hessian_approximation': 'limited-memory', # Changes the hessian calculation for a first order approximation.
+                # 'hessian_approximation': 'limited-memory', # Changes the hessian calculation for a first order approximation.
             },
             'verbose': True,
             # 'jit':True,
