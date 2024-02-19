@@ -7,11 +7,19 @@ from drone_control.Threat import Threat
 from controls.PlaneOptControl import PlaneOptControl
 from data_vis.DataVisualizer import DataVisualizer
 
+#TODO update this function to take in the effector max and min range 
+#
 def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray, 
-                            heading_rad:float, effector_range:float):
+                            heading_rad:float, effector_range:float, 
+                            effector_min_range:float, goal_radius:float,
+                            robot_radius:float):
     """
     Finds the lateral offset directions of the omnidirectional effector
+    
     """    
+    
+    range_diff = (effector_range - effector_min_range)/2
+    range_total = range_diff + robot_radius
     
     ego_unit_vector = np.array([np.cos(heading_rad), np.sin(heading_rad)])
     
@@ -19,8 +27,8 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
     drive_by_vector_one = np.array([ego_unit_vector[1], -ego_unit_vector[0]])
     drive_by_vector_two = np.array([-ego_unit_vector[1], ego_unit_vector[0]])
     
-    drive_by_vector_one = drive_by_vector_one * effector_range
-    drive_by_vector_two = drive_by_vector_two * effector_range
+    drive_by_vector_one = drive_by_vector_one * range_total
+    drive_by_vector_two = drive_by_vector_two * range_total
     
     #pick the one closer to the current position
     distance_one = np.linalg.norm(current_position - (goal_position + drive_by_vector_one))
@@ -102,8 +110,8 @@ init_states = np.array([0, #x
                         5 #airspeed
                         ]) 
 
-final_states = np.array([150, #x
-                         150, #y
+final_states = np.array([250, #x
+                         250, #y
                          0, #z
                          0,  #phi
                          0,  #theta
@@ -133,11 +141,11 @@ trajectory_color = 'blue'
 goal_color = 'green'
 
 #### SET YOUR CONFIGURATIONS HERE #######
-seed = 3
+seed = 2
 np.random.seed(seed)
 sim_iteration = 100
 idx_next_step = 2 #index of the next step in the solution
-N_obstacles = 0
+N_obstacles = 10
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -283,7 +291,7 @@ elif USE_DIRECTIONAL_PEW_PEW_OBSTACLE:
     )
     
 elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
-    Q_val = 1E-2
+    Q_val = 1E-5
     R_val = 1E-1
     obs_x = np.random.randint(OBX_MIN_RANGE, OBX_MAX_RANGE, N_obstacles)
     obs_y = np.random.randint(OBX_MIN_RANGE, OBX_MAX_RANGE, N_obstacles)
@@ -294,16 +302,16 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     mpc_params = {
         'N': 30,
         'Q': ca.diag([Q_val, Q_val, Q_val, 0, 0, 0.0, 0.0]),
-        'R': ca.diag([R_val, R_val, R_val, R_val]),
+        'R': ca.diag([R_val, R_val, R_val, 100]),
         'dt': 0.1
     }
     
     effector_config = {
-            'effector_range': 30, 
+            'effector_range': 50, 
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
-            'weight': 10, 
+            'weight': 100, 
             'radius_target': 5.0,
             'minor_radius': 3
             }
@@ -345,7 +353,10 @@ if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     
     driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                init_states[5], 
-                                               effector_config['effector_range'])
+                                               effector_config['effector_range'],
+                                               effector_config['minor_radius'],
+                                               obs_avoid_params['radii'][-1],
+                                               obs_avoid_params['safe_distance'])
     driveby_states = final_states.copy()
     
     driveby_states[0] = driveby_direction[0]
@@ -360,7 +371,10 @@ for i in range(sim_iteration):
     if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
         driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                 init_states[5], 
-                                                effector_config['effector_range'])
+                                                effector_config['effector_range'],
+                                                effector_config['minor_radius'],
+                                                obs_avoid_params['radii'][-1],
+                                                obs_avoid_params['safe_distance'])
         driveby_states = final_states.copy()        
         driveby_states[0] = driveby_direction[0]
         driveby_states[1] = driveby_direction[1]

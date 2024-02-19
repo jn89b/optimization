@@ -199,6 +199,15 @@ class PlaneOptControl(OptimalControlProblem):
             avoidance_cost += ca.sum2(diff_psi + diff)
             
             self.g = ca.vertcat(self.g, diff[:-1].T)
+            
+            ### this is used for the omnidirectional effector, we constraint it based on the 
+            # radius of the obstacle, robot, and also the major and minor axis of the effector
+            if self.use_pew_pew and i == len(obs_x_vector):
+                if self.Effector.effector_type == 'omnidirectional':                    
+                    #constraint to make sure we don't get too close to the target and crash into it
+                    range_diff = (self.Effector.effector_config['effector_range'] - self.Effector.effector_config['minor_radius'])
+                    diff = -obstacle_distance + self.pew_pew_params['radius_target'] + safe_distance + range_diff
+                    self.g = ca.vertcat(self.g, diff[:-1].T)
         
         # total_avoidance_cost = obs_avoid_weight * ca.sumsqr(avoidance_cost)
         if self.use_pew_pew:
@@ -413,6 +422,9 @@ class PlaneOptControl(OptimalControlProblem):
 
         driveby_location = self.P[n_states:]
 
+        v_max = self.control_constraints['v_cmd_max']
+        v_min = self.control_constraints['v_cmd_min']
+
         for i in range(self.N):
             x_pos = self.X[0, i]
             y_pos = self.X[1, i]
@@ -460,47 +472,51 @@ class PlaneOptControl(OptimalControlProblem):
             
             total_factor = error_dist_factor
             
+            #this is time on target
+            #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
+            quad_v_max = (v_cmd - v_max)**2
+            #quad_v_min = (v_cmd - v_min)**2
+            quad_v_min = (v_cmd - v_min)**2
+            vel_penalty = ca.if_else(error_dist_factor <= 0.5, 
+                                     quad_v_max, quad_v_min)
+
+            #all other controls except for the velocity
+            controls_cost = ca.sumsqr(self.U[:3, i])
             
+                  
             effector_dmg = self.Effector.compute_power_density(dtarget, 
                                                                total_factor, 
                                                                use_casadi=True)
             # negative because we want to minimize
-            effector_cost += -effector_dmg + dot_product #+ effector_dmg**2
+            effector_cost += -effector_dmg + dot_product + vel_penalty + controls_cost
                     
-        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_dmg)
-        # total_effector_cost = 0
+        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
+        
         
         return total_effector_cost        
         
     def compute_total_cost(self) -> ca.SX:
+        
         if self.use_obstacle_avoidance:
-            # self.cost += self.compute_dynamics_cost()
             print('Using obstacle avoidance')
             self.cost += self.compute_obstacle_avoidance_cost()
             
         if self.use_dynamic_threats:
-            
             print('Using dynamic threats')
             self.cost += self.compute_dynamic_threats_cost(self.cost)
-            # self.cost +=self.cost            
-        
+                    
         if self.use_pew_pew:
-            
             if self.Effector.effector_type == 'directional_3d':
                 print('Using directional pew pew')
-                # self.cost += self.compute_dynamics_cost()
                 self.cost += self.compute_directional_pew_cost()
-                # self.cost += self.compute_time_on_target_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':
-                print('Using omni pew pew')
                 self.cost += self.compute_dynamics_cost()
                 self.cost += self.compute_omni_pew_cost()
                 
         else:
             self.cost += self.compute_dynamics_cost()
             
-
         return self.cost
 
     def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray, 

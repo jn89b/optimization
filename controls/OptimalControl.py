@@ -178,7 +178,7 @@ class OptimalControlProblem():
         }
         solver_opts = {
             'ipopt': {
-                # 'max_iter': 150,
+                'max_iter': 150,
                 # 'max_cpu_time': 0.15,
                 # 'max_wall_time': 0.15,
                 'print_level': 2,
