@@ -213,19 +213,7 @@ class OptimalControlProblem():
         X0 = ca.repmat(state_init, 1, self.N + 1)
         U0 = ca.repmat(u0, 1, self.N)
 
-        n_states = self.model_casadi.n_states
-        n_controls = self.model_casadi.n_controls
-        
-        lbg = ca.DM.zeros((n_states*(self.N+1), 1))
-        ubg  =  ca.DM.zeros((n_states*(self.N+1), 1))
-        
-        args = {
-            'lbg': lbg,
-            'ubg': ubg,
-            'lbx': self.pack_variables_fn(**self.lbx)['flat'],
-            'ubx': self.pack_variables_fn(**self.ubx)['flat'],
-        }
-        
+            
         args['p'] = ca.vertcat(
             state_init,    # current state
             state_final   # target state

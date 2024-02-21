@@ -35,8 +35,8 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
     distance_two = np.linalg.norm(current_position - (goal_position + drive_by_vector_two))
     
     #compute the dot product for each drive by vector
-    dot_product_one = np.dot(ego_unit_vector, drive_by_vector_one)
-    dot_product_two = np.dot(ego_unit_vector, drive_by_vector_two)
+    # dot_product_one = np.dot(ego_unit_vector, drive_by_vector_one)
+    # dot_product_two = np.dot(ego_unit_vector, drive_by_vector_two)
     
     #pick the one that is in the same direction as the ego unit vector
     # if dot_product_one > 0:
@@ -53,18 +53,16 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
         drive_by_vector = drive_by_vector_two
     else:
         drive_by_vector = drive_by_vector_one
-        
-        
+            
     #apply to goal position
     drive_by_position = goal_position + drive_by_vector
     
     return drive_by_position
 
-plt.close('all')
-
 def find_driveby_point(goal_position, current_los):
     pass
 
+plt.close('all')
 ###### INITIAL CONFIGURATIONS ########
 mpc_params = {
     'N': 30,
@@ -145,7 +143,7 @@ seed = 2
 np.random.seed(seed)
 sim_iteration = 100
 idx_next_step = 2 #index of the next step in the solution
-N_obstacles = 10
+N_obstacles = 0
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
