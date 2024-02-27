@@ -65,9 +65,9 @@ def find_driveby_point(goal_position, current_los):
 plt.close('all')
 ###### INITIAL CONFIGURATIONS ########
 mpc_params = {
-    'N': 30,
-    'Q': ca.diag([1E-2, 1E-2, 1E-2, 0, 0, 0.0, 0.0]),
-    'R': ca.diag([0.01, 0.01, 0.01, 0.01]),
+    'N': 10,
+    'Q': ca.diag([1.0, 1.0, 1.0, 0, 0, 0.0, 0.0]),
+    'R': ca.diag([0.1, 0.1, 0.1, 0.1]),
     'dt': 0.1
 }
 
@@ -108,9 +108,9 @@ init_states = np.array([0, #x
                         5 #airspeed
                         ]) 
 
-final_states = np.array([250, #x
+final_states = np.array([100, #x
                          250, #y
-                         0, #z
+                         0, #zod
                          0,  #phi
                          0,  #theta
                          0,  #psi
@@ -143,7 +143,7 @@ seed = 2
 np.random.seed(seed)
 sim_iteration = 100
 idx_next_step = 2 #index of the next step in the solution
-N_obstacles = 0
+N_obstacles = 10
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -151,17 +151,18 @@ SAVE_GIF = False
 
 OBX_MIN_RANGE = 30
 OBX_MAX_RANGE = 200
-OBX_MIN_RADIUS = 5
-OBX_MAX_RADIUS = 20
+OBX_MIN_RADIUS = 32
+OBX_MAX_RADIUS = 45
 
 get_cost = True
  
 USE_BASIC = False
-USE_OBSTACLE = False
+USE_OBSTACLE = True
 USE_TIME_CONSTRAINT = False
 USE_DIRECTIONAL_PEW_PEW = False
 USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
-USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = True
+USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
+
 
 ############   MPC   #####################
 if USE_BASIC:
@@ -213,7 +214,7 @@ elif USE_DIRECTIONAL_PEW_PEW :
     mpc_params = {
         'N': 30,
         'Q': ca.diag([1E-3, 1E-3, 1E-3, 0, 0, 0.0, 0.0]),
-        'R': ca.diag([0.01, 0.01, 0.01, 0.001]),
+        'R': ca.diag([0.1, 0.1, 0.1, 0.1]),
         'dt': 0.1
     }
     
@@ -304,6 +305,13 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
         'dt': 0.1
     }
     
+    # mpc_params = {
+    #     'N': 30,
+    #     'Q': ca.diag([0.0, 0.0, Q_val, Q_val, 0, 0.0, 0.0]),
+    #     'R': ca.diag([R_val, R_val, R_val, R_val]),
+    #     'dt': 0.1
+    # }
+    
     effector_config = {
             'effector_range': 50, 
             'effector_power': 1, 
@@ -311,7 +319,7 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
             'weight': 100, 
             'radius_target': 5.0,
-            'minor_radius': 3
+            'minor_radius': 32.0
             }
     
     obs_avoid_params = {
@@ -376,11 +384,16 @@ for i in range(sim_iteration):
         driveby_states = final_states.copy()        
         driveby_states[0] = driveby_direction[0]
         driveby_states[1] = driveby_direction[1]
+        
+        driveby_states[2] = 28
+        driveby_states[3] = np.deg2rad(32.5)
+        
         print("Drive By Direction: ", driveby_direction)
         start_time = time.time()
         solution_results,end_time = plane_mpc.get_solution(init_states, driveby_states, init_controls,
                                                   get_cost=get_cost)
         driveby_locations.append(driveby_direction)
+        
         
     else:
         start_time = time.time()
@@ -544,9 +557,11 @@ for i in range(len(entire_solution['x'])):
 fig, ax = data_vis.plot_controls(entire_solution, time_span, plane.n_controls,
                                  add_one_more=True, additional_row=distance_from_goal,
                                  label_name='Distance from Goal')
-
 #SHARE ax
 ax.sharex(ax)
+
+fig,ax = data_vis.plot_attitudes(entire_solution, time_span, plane.n_states)
+
 
 #solution times
 fig,ax = plt.subplots()

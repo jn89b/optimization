@@ -4,7 +4,7 @@ import casadi as ca
 import numpy  as np
 import time
 
-class PlaneOptControl(OptimalControlProblem):
+class PlaneOptControl2(OptimalControlProblem):
     def __init__(self, 
                  control_constraints:dict, 
                  state_constraints:dict, 
@@ -94,14 +94,14 @@ class PlaneOptControl(OptimalControlProblem):
                     
     def update_bound_constraints(self) -> None:
         #add control constraints
-        self.lbx['U'][0,:] = self.control_constraints['u_phi_min']
-        self.ubx['U'][0,:] = self.control_constraints['u_phi_max']
+        self.lbx['U'][0,:] = self.control_constraints['load_x_min']
+        self.ubx['U'][0,:] = self.control_constraints['load_x_max']
 
-        self.lbx['U'][1,:] = self.control_constraints['u_theta_min']
-        self.ubx['U'][1,:] = self.control_constraints['u_theta_max']
+        self.lbx['U'][1,:] = self.control_constraints['load_z_min']
+        self.ubx['U'][1,:] = self.control_constraints['load_z_max']
 
-        self.lbx['U'][2,:] = self.control_constraints['u_psi_min']
-        self.ubx['U'][2,:] = self.control_constraints['u_psi_max']
+        self.lbx['U'][2,:] = self.control_constraints['u_phi_min']
+        self.ubx['U'][2,:] = self.control_constraints['u_phi_max']
 
         self.lbx['U'][3,:] = self.control_constraints['v_cmd_min']
         self.ubx['U'][3,:] = self.control_constraints['v_cmd_max']
@@ -116,8 +116,8 @@ class PlaneOptControl(OptimalControlProblem):
         self.lbx['X'][4,:] = self.state_constraints['theta_min']
         self.ubx['X'][4,:] = self.state_constraints['theta_max']
         
-        # self.lbx['X'][6,:] = self.state_constraints['airspeed_min']
-        # self.ubx['X'][6,:] = self.state_constraints['airspeed_max']
+        self.lbx['X'][6,:] = self.state_constraints['airspeed_min']
+        self.ubx['X'][6,:] = self.state_constraints['airspeed_max']
         
         print('Bound constraints updated')
 
@@ -628,9 +628,9 @@ class PlaneOptControl(OptimalControlProblem):
                 'theta': x[4,:].full().T[:,0],
                 'psi': x[5,:].full().T[:,0],
                 'v': x[6,:].full().T[:,0],
-                'u_phi': u[0,:].full().T[:,0],
-                'u_theta': u[1,:].full().T[:,0],
-                'u_psi': u[2,:].full().T[:,0],
+                'load_x': u[0,:].full().T[:,0],
+                'load_z': u[1,:].full().T[:,0],
+                'u_phi': u[2,:].full().T[:,0],
                 'v_cmd': u[3,:].full().T[:,0],
                 'cost': f,
                 'grad': df
@@ -645,9 +645,9 @@ class PlaneOptControl(OptimalControlProblem):
                 'theta': x[4,:].full().T[:,0],
                 'psi': x[5,:].full().T[:,0],
                 'v': x[6,:].full().T[:,0],
-                'u_phi': u[0,:].full().T[:,0],
-                'u_theta': u[1,:].full().T[:,0],
-                'u_psi': u[2,:].full().T[:,0],
+                'load_x': u[0,:].full().T[:,0],
+                'load_z': u[1,:].full().T[:,0],
+                'u_phi': u[2,:].full().T[:,0],
                 'v_cmd': u[3,:].full().T[:,0]
             }
             return solution_results,end_time

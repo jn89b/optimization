@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 #animation imports
 from matplotlib import animation
+from mpl_toolkits import mplot3d
 
 class DataVisualizer():
     """
@@ -107,7 +108,8 @@ class DataVisualizer():
                         time_list:np.ndarray=None) -> tuple:
         
         #plot 3d trajectory
-        fig, ax = plt.subplots(subplot_kw={'projection': '3d'}, figsize=(10,10))
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(111, projection='3d')
         x = solution['x']
         y = solution['y']
         z = solution['z']
@@ -263,7 +265,7 @@ class DataVisualizer():
                     # scatter.set_data(x[frame], y[frame])
                     # scatter.set_3d_properties(z[frame])
                                 
-            return lines 
+            return lines
         
         ani = animation.FuncAnimation(fig, update, frames=len(x), interval=animation_interval,
                                       init_func=init, blit=True)
@@ -274,10 +276,68 @@ class DataVisualizer():
             sm.set_array([])
             cbar = plt.colorbar(sm, ax=ax, label='Velocity m/s')
             
-            
-
-
         return fig,ax,ani
 
+    @staticmethod
+    def plot_attitudes(solution:dict, time_list:np.ndarray, n_states:int) -> tuple:
+        fig,ax = plt.subplots(nrows=n_states, figsize=(10,10))
+        
+        phi = np.rad2deg(solution['phi'])
+        theta = np.rad2deg(solution['theta'])
+        psi = np.rad2deg(solution['psi'])
+        
+        #wrap psi to -180 to 180
+        psi = np.rad2deg(np.unwrap(np.deg2rad(psi)))
+
+        ax[0].plot(time_list, np.rad2deg(phi), 'r', label='phi')
+        ax[1].plot(time_list, np.rad2deg(theta), 'g', label='theta')
+        ax[2].plot(time_list, np.rad2deg(psi), 'b', label='psi')
+        ax[3].plot(time_list, solution['v'], 'k', label='v')
+                
+        for ax in ax:
+            ax.set_ylabel('Attitude')
+            ax.set_xlabel('Time (s)')
+            ax.legend()
+            ax.grid()
+            
+        return fig,ax
+            
+            
+    @staticmethod
+    def plot_controls_load(solution:dict, time_list:np.ndarray, n_controls:int,
+                      add_one_more:bool=False, additional_row:list=None,
+                      label_name:str=None) -> tuple:
+        #plot controls
+        if add_one_more == True:
+            fig,ax = plt.subplots(nrows=n_controls+1, figsize=(10,10))
+        else:
+            fig,ax = plt.subplots(nrows=n_controls, figsize=(10,10))
+        load_x = solution['load_x']
+        load_z = solution['load_z']
+        u_phi = np.rad2deg(solution['u_phi'])
+        v_cmd = solution['v_cmd']
+        
+        #check if time_list is one less than the control list
+        if len(time_list) == len(load_x):
+            time_list = time_list
+        else:
+            time_list = time_list[:-1]
+                
     
+        ax[0].plot(time_list, load_x, 'r', label='load_x')
+        ax[1].plot(time_list, load_z, 'g', label='u_theta')
+        ax[2].plot(time_list, u_phi, 'b', label='u_psi'), 
+        ax[3].plot(time_list, v_cmd, 'k', label='v_cmd')
+        ax[4].plot(time_list, additional_row, 'm', label=label_name)
+
+        for ax in ax:
+            ax.set_ylabel('Control')
+            ax.set_xlabel('Time (s)')
+            ax.legend()
+            ax.grid()
+        
+        # if add_one_more:
+        #     ax[4].set_ylabel(label_name)
+        
+        return fig,ax
         
