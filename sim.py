@@ -34,20 +34,6 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
     distance_one = np.linalg.norm(current_position - (goal_position + drive_by_vector_one))
     distance_two = np.linalg.norm(current_position - (goal_position + drive_by_vector_two))
     
-    #compute the dot product for each drive by vector
-    # dot_product_one = np.dot(ego_unit_vector, drive_by_vector_one)
-    # dot_product_two = np.dot(ego_unit_vector, drive_by_vector_two)
-    
-    #pick the one that is in the same direction as the ego unit vector
-    # if dot_product_one > 0:
-    #     drive_by_vector = drive_by_vector_one
-    # else:
-    #     driveby_vector = drive_by_vector_two
-    
-    # if distance_one < distance_two:
-    #     drive_by_vector = drive_by_vector_one
-    # else:
-    #     drive_by_vector = drive_by_vector_two
         
     if distance_one < distance_two:
         drive_by_vector = drive_by_vector_two
@@ -157,11 +143,11 @@ OBX_MAX_RADIUS = 45
 get_cost = True
  
 USE_BASIC = False
-USE_OBSTACLE = True
+USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
 USE_DIRECTIONAL_PEW_PEW = False
 USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
-USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
+USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = True
 
 
 ############   MPC   #####################
@@ -305,13 +291,6 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
         'dt': 0.1
     }
     
-    # mpc_params = {
-    #     'N': 30,
-    #     'Q': ca.diag([0.0, 0.0, Q_val, Q_val, 0, 0.0, 0.0]),
-    #     'R': ca.diag([R_val, R_val, R_val, R_val]),
-    #     'dt': 0.1
-    # }
-    
     effector_config = {
             'effector_range': 50, 
             'effector_power': 1, 
@@ -392,7 +371,7 @@ for i in range(sim_iteration):
         start_time = time.time()
         solution_results,end_time = plane_mpc.get_solution(init_states, driveby_states, init_controls,
                                                   get_cost=get_cost)
-        driveby_locations.append(driveby_direction)
+        driveby_locations.append(driveby_direction) 
         
         
     else:

@@ -10,10 +10,10 @@ sin(phi) = h/r
 
 ## Let's try constraining our effector
 r_min = 20
-r_max = 50
+r_max = 40
 
 # velocity bounds
-v_min = 16
+v_min = 15
 v_max = 30
 
 # roll bounds

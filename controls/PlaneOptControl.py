@@ -163,7 +163,7 @@ class PlaneOptControl(OptimalControlProblem):
             
         return cost
 
-    def compute_obstacle_avoidance_cost(self) -> ca.SX:
+    def     compute_obstacle_avoidance_cost(self) -> ca.SX:
         obs_avoid_weight = self.obs_params['weight']
         obs_x_vector = self.obs_params['x']
         obs_y_vector = self.obs_params['y']
@@ -492,7 +492,6 @@ class PlaneOptControl(OptimalControlProblem):
                     
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
         
-        
         return total_effector_cost        
         
     def compute_total_cost(self) -> ca.SX:
@@ -507,7 +506,7 @@ class PlaneOptControl(OptimalControlProblem):
                     
         if self.use_pew_pew:
             if self.Effector.effector_type == 'directional_3d':
-                print('Using directional pew pew')
+                # print('Using directional pew pew')
                 self.cost += self.compute_directional_pew_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':
@@ -550,7 +549,6 @@ class PlaneOptControl(OptimalControlProblem):
                 lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
                 # -infinity to minimum margin value for obs avoidance
                 lbg[n_states*self.N+n_states:] = -ca.inf
-                
                 # constraints upper bound
                 ubg  =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
                 #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
