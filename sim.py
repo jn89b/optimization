@@ -127,9 +127,9 @@ goal_color = 'green'
 #### SET YOUR CONFIGURATIONS HERE #######
 seed = 2
 np.random.seed(seed)
-sim_iteration = 50
+sim_iteration = 25
 idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 10
+N_obstacles = 1
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -145,9 +145,9 @@ get_cost = True
 USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
-USE_DIRECTIONAL_PEW_PEW = True
+USE_DIRECTIONAL_PEW_PEW = False
 USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
-USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
+USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = True
 
 
 ############   MPC   #####################
@@ -287,23 +287,23 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     mpc_params = {
         'N': 30,
         'Q': ca.diag([Q_val, Q_val, Q_val, 0, 0, 0.0, 0.0]),
-        'R': ca.diag([R_val, R_val, R_val, 100]),
+        'R': ca.diag([R_val, R_val, R_val, 0.0]),
         'dt': 0.1
     }
     
     effector_config = {
-            'effector_range': 50, 
+            'effector_range': 20, 
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
-            'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
+            'effector_angle': np.deg2rad(90), #double the angle of the cone, this will be divided to two
             'weight': 100, 
-            'radius_target': 5.0,
-            'minor_radius': 32.0
+            'radius_target': 1.0,
+            'minor_radius': 1.0
             }
     
     obs_avoid_params = {
         'weight': Q_val,
-        'safe_distance': 4.0,
+        'safe_distance': 1.0,
         'x': obs_x,
         'y': obs_y,
         'z': obs_z,
@@ -334,26 +334,26 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
 plane_mpc.init_optimization_problem()
 #solution_results = plane_mpc.get_solution(init_states, final_states, init_controls)
 
-if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
+# if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     
-    driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
-                                               init_states[5], 
-                                               effector_config['effector_range'],
-                                               effector_config['minor_radius'],
-                                               obs_avoid_params['radii'][-1],
-                                               obs_avoid_params['safe_distance'])
-    driveby_states = final_states.copy()
+#     driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
+#                                                init_states[5], 
+#                                                effector_config['effector_range'],
+#                                                effector_config['minor_radius'],
+#                                                obs_avoid_params['radii'][-1],
+#                                                obs_avoid_params['safe_distance'])
+#     driveby_states = final_states.copy()
     
-    driveby_states[0] = driveby_direction[0]
-    driveby_states[1] = driveby_direction[1]
-    print("Drive By Direction: ", driveby_direction)
+#     driveby_states[0] = driveby_direction[0]
+#     driveby_states[1] = driveby_direction[1]
+#     print("Drive By Direction: ", driveby_direction)
 
 solution_history = []
 solution_times = []
 driveby_locations = []
 for i in range(sim_iteration):
     
-    if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
+    if False:
         driveby_direction = find_driveby_direction(final_states[:2], init_states[:2], 
                                                 init_states[5], 
                                                 effector_config['effector_range'],

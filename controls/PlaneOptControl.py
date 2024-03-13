@@ -347,14 +347,6 @@ class PlaneOptControl(OptimalControlProblem):
             ratio_psi = (error_psi/self.Effector.effector_angle)**2
             
             effector_dmg = (ratio_distance * (ratio_theta + ratio_psi))
-
-            #we multiply all three factors if any one of them are close to 0 the total_factor 
-            #will then be close to 0
-            #total_factor = error_dist_factor * error_psi_factor * error_theta_factor
-            # effector_dmg = self.Effector.compute_power_density(dtarget, 
-            #                                                    total_factor, 
-            #                                                    use_casadi=True)
-                    
             #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
             quad_v_max = (v_cmd - v_max)**2
@@ -366,8 +358,6 @@ class PlaneOptControl(OptimalControlProblem):
             #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
             
-            # effector_cost +=  - e_total #+ vel_penalty + controls_cost
-
             effector_cost += effector_dmg + vel_penalty + controls_cost
             
             # constraint to make sure we don't get too close to the target and crash into it
@@ -420,6 +410,109 @@ class PlaneOptControl(OptimalControlProblem):
         
         return total_tot_cost
 
+    def omni_cost_function(self) -> ca.SX:
+        """compute the cost function for the directional effector"""
+        if self.Effector is None:
+            raise ValueError('Effector not initialized')
+        
+        n_states = self.model_casadi.n_states
+        target_location = self.P[n_states:]
+
+        total_effector_cost = 0
+        effector_cost = 0
+        
+        v_max = self.control_constraints['v_cmd_max']
+        v_min = self.control_constraints['v_cmd_min']
+
+        k_range = 0.5
+        k_elev = 5
+        k_azim = 5
+
+        for i in range(self.N):
+            x_pos = self.X[0, i]
+            y_pos = self.X[1, i]
+            z_pos = self.X[2, i]
+            roll  = self.X[3, i]
+            pitch = self.X[4, i]
+            yaw   = self.X[5, i]
+            v_cmd = self.U[3, i]
+
+            if i == self.N-1:
+                v_cmd_next = self.U[3, i]
+            else:
+                v_cmd_next = self.U[3, i+1]
+
+            ###### DIRECTIONAL EFFECTOR COST FUNCTION MAXIMIZE TIME ON TARGET BY SLOWING DOWN APPROACH######
+            #right now this is set up for the directional effector
+            dx = target_location[0] - x_pos
+            dy = target_location[1] - y_pos
+            dz = target_location[2] - z_pos
+                    
+            dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
+            #los_target = ca.vertcat(dx, dy)
+            los_target = ca.atan2(dy, dx)
+            
+            #slow down cost  
+            #normal unit vector of the target
+            los_hat = ca.vertcat(dx, dy, dz) / dtarget
+            
+            #ego unit vector
+            u_x = ca.cos(pitch) * ca.cos(yaw)
+            u_y = ca.cos(pitch) * ca.sin(yaw)
+            u_z = ca.sin(pitch)
+            ego_unit_vector = ca.vertcat(u_x, u_y, u_z)
+            
+            #dot product of the unit vectors
+            dot_product = ca.dot(los_hat, ego_unit_vector)
+            
+            
+            # the idea of this is we want to be as perpendicular as possible to the target 
+            # this will use the gaussian cuve where the peak is 1 if the dot product is 
+            directional_cost = -self.gaussian_fn(dot_product)
+                            
+            #these exponential functions will be used to account for the distance and angle of the target
+            #the closer we are to the target the more the distance factor will be close to 1
+            error_dist_factor = ca.exp(-k_range*dtarget/self.Effector.effector_range)
+            #error_dist = dtarget/self.Effector.effector_range
+            
+            #the closer we are to the target the more the angle factor will be close to 1
+            error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
+            error_psi_factor = ca.exp(-k_azim*error_psi/self.Effector.effector_angle)
+            
+            #the closer we are to the target the more the angle factor will be close to 1
+            los_theta = ca.atan2(dz, dx)
+            error_theta = ca.fabs(los_theta - pitch) 
+            error_phi = ca.fabs(ca.atan2(dy, dx) - roll)
+            
+            ratio_distance = (dtarget/self.Effector.effector_range)**2
+            ratio_theta = (error_theta/self.Effector.effector_angle)**2
+            ratio_phi = (error_phi/self.Effector.effector_angle)**2
+            
+            effector_dmg = (ratio_distance + directional_cost * (ratio_theta*ratio_phi))
+            #this is time on target
+            #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
+            quad_v_max = (v_cmd - v_max)**2
+            #quad_v_min = (v_cmd - v_min)**2
+            quad_v_min = (v_cmd - v_min)**2
+            vel_penalty = ca.if_else(error_dist_factor <= 0.1, 
+                                     quad_v_max, quad_v_min)
+
+            #all other controls except for the velocity
+            controls_cost = ca.sumsqr(self.U[:3, i])
+            
+            effector_cost += effector_dmg + vel_penalty + controls_cost
+            
+            # constraint to make sure we don't get too close to the target and crash into it
+            safe_distance = self.obs_params['safe_distance']
+            diff = -dtarget + self.pew_pew_params['radius_target'] + safe_distance 
+            self.g = ca.vertcat(self.g, diff)
+                        
+            ###### TOROID EFFECTOR TURN IT INTO A TIME CONSTRAINT FUNCTION ######
+        
+        total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost) #+ time_cost
+        
+        return total_effector_cost
+        
     def compute_omni_pew_cost(self) -> ca.SX:
         """
         This cost function will be used to compute the cost of an omnidirectional effector
@@ -435,7 +528,7 @@ class PlaneOptControl(OptimalControlProblem):
         target_z = self.obs_params['z'][-1]
         radii = self.obs_params['radii'][-1]
 
-        driveby_location = self.P[n_states:]
+        # driveby_location = self.P[n_states:]
 
         v_max = self.control_constraints['v_cmd_max']
         v_min = self.control_constraints['v_cmd_min']
@@ -457,11 +550,11 @@ class PlaneOptControl(OptimalControlProblem):
             
             ###### DIRECTIONAL EFFECTOR COST FUNCTION MAXIMIZE TIME ON TARGET BY SLOWING DOWN APPROACH######
             #right now this is set up for the directional effector
-            dx_driveby = driveby_location[0] - x_pos
-            dy_driveby = driveby_location[1] - y_pos
-            dz_driveby = driveby_location[2] - z_pos
+            # dx_driveby = driveby_location[0] - x_pos
+            # dy_driveby = driveby_location[1] - y_pos
+            # dz_driveby = driveby_location[2] - z_pos
             
-            d_drivbeby = ca.sqrt((dx_driveby)**2 + (dy_driveby)**2 + (dz_driveby)**2)
+            # d_drivbeby = ca.sqrt((dx_driveby)**2 + (dy_driveby)**2 + (dz_driveby)**2)
                     
             dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
 
@@ -479,7 +572,6 @@ class PlaneOptControl(OptimalControlProblem):
             
             # the idea of this is we want to be as perpendicular as possible to the target 
             # this will use the gaussian cuve where the peak is 1 if the dot product is 
-            # 0
             directional_cost = self.gaussian_fn(dot_product)
                 
             #this value will be close to 1 the closer we are in range to the target            
@@ -492,18 +584,28 @@ class PlaneOptControl(OptimalControlProblem):
             quad_v_max = (v_cmd - v_max)**2
             #quad_v_min = (v_cmd - v_min)**2
             quad_v_min = (v_cmd - v_min)**2
-            vel_penalty = ca.if_else(error_dist_factor <= 0.5, 
+            vel_penalty = ca.if_else(error_dist_factor <= 0.1, 
                                      quad_v_max, quad_v_min)
 
             #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
             
-                  
-            effector_dmg = self.Effector.compute_power_density(dtarget, 
-                                                               total_factor, 
-                                                               use_casadi=True)
-            # negative because we want to minimize
-            effector_cost += -effector_dmg + dot_product + vel_penalty + controls_cost
+            # effector_dmg = self.Effector.compute_power_density(dtarget, 
+            #                                                    total_factor, 
+            #                                                    use_casadi=True)
+            # # negative because we want to minimize
+            # effector_cost += -effector_dmg + dot_product + vel_penalty + controls_cost
+            los_theta = ca.atan2(dz, dx)
+            error_theta = ca.fabs(los_theta - pitch) 
+            # error_phi = ca.fabs(ca.atan2(dy, dx) - roll)
+
+            ratio_distance = (dtarget/self.Effector.effector_range)**2
+            ratio_theta = (error_theta/self.Effector.effector_angle)**2
+            # ratio_phi = (error_phi/self.Effector.effector_angle)**2
+            
+            effector_dmg = (ratio_distance * (ratio_theta))
+
+            effector_cost += effector_dmg + vel_penalty
                     
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
         
@@ -525,9 +627,9 @@ class PlaneOptControl(OptimalControlProblem):
                 self.cost += self.compute_directional_pew_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':
-                self.cost += self.compute_dynamics_cost()
-                self.cost += self.compute_omni_pew_cost()
-                
+                # self.cost += self.compute_dynamics_cost()
+                # self.cost += self.compute_omni_pew_cost()
+                self.cost += self.omni_cost_function()
         else:
             self.cost += self.compute_dynamics_cost()
             
@@ -559,7 +661,8 @@ class PlaneOptControl(OptimalControlProblem):
                 #rob_diam/2 + obs_diam/2 #adding inequality constraints at the end 
                 ubg[n_states*self.N+n_states:] = 0
             else:
-                num_obstacles = len(self.obs_params['x'])
+                # num_obstacles = len(self.obs_params['x'])
+                num_obstacles = len(self.obs_params['x']) + 1
                 num_constraints = num_obstacles * self.N
                 lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
                 # -infinity to minimum margin value for obs avoidance
