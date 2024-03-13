@@ -127,8 +127,8 @@ goal_color = 'green'
 #### SET YOUR CONFIGURATIONS HERE #######
 seed = 2
 np.random.seed(seed)
-sim_iteration = 100
-idx_next_step = 2 #index of the next step in the solution
+sim_iteration = 50
+idx_next_step = 5 #index of the next step in the solution
 N_obstacles = 10
 
 
@@ -145,9 +145,9 @@ get_cost = True
 USE_BASIC = False
 USE_OBSTACLE = False
 USE_TIME_CONSTRAINT = False
-USE_DIRECTIONAL_PEW_PEW = False
+USE_DIRECTIONAL_PEW_PEW = True
 USE_DIRECTIONAL_PEW_PEW_OBSTACLE = False
-USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = True
+USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE = False
 
 
 ############   MPC   #####################
@@ -205,17 +205,17 @@ elif USE_DIRECTIONAL_PEW_PEW :
     }
     
     effector_config = {
-            'effector_range': 200, 
+            'effector_range': 20, 
             'effector_power': 1, 
             'effector_type': 'directional_3d', 
             'effector_angle': np.deg2rad(60), #double the angle of the cone, this will be divided to two
             'weight': 10, 
-            'radius_target': 0.5
+            'radius_target': 0.1
             }
     
     obs_avoid_params = {
         'weight': 1E-10,
-        'safe_distance': 1.0,
+        'safe_distance': 0.1,
         'x': [],
         'y': [],
         'radii': []

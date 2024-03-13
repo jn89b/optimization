@@ -8,12 +8,14 @@ print("dtarget: ", dtarget)
 effector_range = 10
 
 #compute the cost function
-cost_fn_one = np.exp(-dtarget/effector_range)
+k = 0.1 #tuning parameter to adjust steepness of the curve the closer to 0 the less steep the curve, between 0 and 1
+cost_fn_one = np.exp(-k*dtarget/effector_range)
 velocity_penalty = 1 + (cost_fn_one/1)
 
 velocity = 15 
 total_cost = velocity_penalty * cost_fn_one
 total_cost_2 = 25 * cost_fn_one
+
 
 fig,ax = plt.subplots()
 ax.plot(dtarget, cost_fn_one, 'r', label='1 - exp(d/effector_range)')

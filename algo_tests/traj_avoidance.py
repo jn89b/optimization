@@ -165,7 +165,7 @@ def find_danger_zones(obstacles:np.ndarray,
         distance_to_obstacle = np.linalg.norm(obs_position - ego_position)
         print("distance_to_obstacle:", distance_to_obstacle)
         delta_r = distance_to_obstacle +obs_radius - min_radius_turn
-        if delta_r < distance_buffer:
+        if delta_r >= distance_buffer:
             #compute the danger zone
             danger_zones.append((obs,obstacles[i][1]))
             
@@ -189,15 +189,25 @@ np.random.seed(random_seed)
 
 #generate random obstacles
 num_obstacles = 10
-obs_x = np.random.uniform(-20, 100, num_obstacles)
-obs_y = np.random.uniform(20, 100, num_obstacles)
-obs_z = np.random.uniform(-10, 100, num_obstacles)
-obs_radii = np.random.uniform(3, 10, num_obstacles)
+# obs_x = np.random.uniform(-20, 100, num_obstacles)
+# obs_y = np.random.uniform(20, 100, num_obstacles)
+# obs_z = np.random.uniform(-10, 100, num_obstacles)
+# obs_radii = np.random.uniform(3, 10, num_obstacles)
+
+goal_x = 100 
+goal_y  = 100
+goal_z = 50
+
+#generate a line of obstacles
+obs_x = np.arange(95, 105, 1)
+obs_y = np.ones(len(obs_x)) * goal_y
+obs_z = np.ones(len(obs_x)) * goal_z
+obs_radii = np.random.uniform(3, 10, len(obs_x))
+
 obstacles = np.array([obs_x, obs_y, obs_z, obs_radii]).T
 
 nearest_obstacles,nearest_indices  = knn_obstacles(
     obstacles, current_position, K=10, use_2d=True)
-
 
 inline_obs = find_inline_obstacles(
     ego_unit_vector, 

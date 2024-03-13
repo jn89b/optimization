@@ -295,6 +295,10 @@ class PlaneOptControl(OptimalControlProblem):
         v_max = self.control_constraints['v_cmd_max']
         v_min = self.control_constraints['v_cmd_min']
 
+        k_range = 0.5
+        k_elev = 5
+        k_azim = 5
+
         for i in range(self.N):
             x_pos = self.X[0, i]
             y_pos = self.X[1, i]
@@ -323,37 +327,48 @@ class PlaneOptControl(OptimalControlProblem):
                             
             #these exponential functions will be used to account for the distance and angle of the target
             #the closer we are to the target the more the distance factor will be close to 1
-            error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
+            error_dist_factor = ca.exp(-k_range*dtarget/self.Effector.effector_range)
             #error_dist = dtarget/self.Effector.effector_range
             
             #the closer we are to the target the more the angle factor will be close to 1
             error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
-            error_psi_factor = ca.exp(-error_psi/self.Effector.effector_angle)
+            error_psi_factor = ca.exp(-k_azim*error_psi/self.Effector.effector_angle)
             
             #the closer we are to the target the more the angle factor will be close to 1
             los_theta = ca.atan2(dz, dx)
             error_theta = ca.fabs(los_theta - pitch) 
-            error_theta_factor = ca.exp(-error_theta/self.Effector.effector_angle)  
+            error_theta_factor = ca.exp(-k_elev*error_theta/self.Effector.effector_angle)  
+
+            e_total = (error_dist_factor + error_psi_factor + error_theta_factor) / 3
+            power_effector = self.Effector.effector_power 
+            
+            ratio_distance = (dtarget/self.Effector.effector_range)**2
+            ratio_theta = (error_theta/self.Effector.effector_angle)**2
+            ratio_psi = (error_psi/self.Effector.effector_angle)**2
+            
+            effector_dmg = (ratio_distance * (ratio_theta + ratio_psi))
 
             #we multiply all three factors if any one of them are close to 0 the total_factor 
             #will then be close to 0
-            total_factor = error_dist_factor * error_psi_factor #* error_theta_factor
-            effector_dmg = self.Effector.compute_power_density(dtarget, 
-                                                               total_factor, 
-                                                               use_casadi=True)
-            
+            #total_factor = error_dist_factor * error_psi_factor * error_theta_factor
+            # effector_dmg = self.Effector.compute_power_density(dtarget, 
+            #                                                    total_factor, 
+            #                                                    use_casadi=True)
+                    
             #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
             quad_v_max = (v_cmd - v_max)**2
             #quad_v_min = (v_cmd - v_min)**2
             quad_v_min = (v_cmd - v_min)**2
-            vel_penalty = ca.if_else(error_dist_factor <= 0.6, 
+            vel_penalty = ca.if_else(error_dist_factor <= 0.1, 
                                      quad_v_max, quad_v_min)
 
             #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
             
-            effector_cost +=  dtarget - effector_dmg**2 + vel_penalty + controls_cost
+            # effector_cost +=  - e_total #+ vel_penalty + controls_cost
+
+            effector_cost += effector_dmg + vel_penalty + controls_cost
             
             # constraint to make sure we don't get too close to the target and crash into it
             safe_distance = self.obs_params['safe_distance']

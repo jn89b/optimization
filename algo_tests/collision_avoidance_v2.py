@@ -153,8 +153,10 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
             #if right side has more obstacles then pick the left vector
             #figure out which vector is the left vector
             drive_by_vector = left_vector
+            print("Right side has more obstacles")
         else:
             drive_by_vector = right_vector
+            print("Left side has more obstacles")
             
     else:  
         if distance_one < distance_two:
@@ -162,13 +164,13 @@ def find_driveby_direction(goal_position:np.ndarray, current_position:np.ndarray
         else:
             drive_by_vector = drive_by_vector_one
                 
-        
     #apply to goal position
     drive_by_position = goal_position + drive_by_vector
     
+
     return drive_by_position
     
-current_position = np.array([10.0,10.0,0])
+current_position = np.array([85,85,0])
 current_heading = np.deg2rad(45)
 current_velocity = 15
 max_velocity = 30
@@ -178,16 +180,30 @@ g = 9.81
 
 r_thesholdhold = (min_velocity)**2/(g*np.tan(phi_max))
 print("R Threshold:", r_thesholdhold)
-random_seed = 42
+random_seed = 0
 
 np.random.seed(random_seed)
+goal_x = 100
+goal_y = 100
+goal_z = 100
+robot_radius = 3.0
 
 #generate random obstacles
 num_obstacles = 10
-obs_x = np.random.uniform(-20, 100, num_obstacles)
-obs_y = np.random.uniform(20, 100, num_obstacles)
+obs_buffer = 20
+obs_x = np.random.uniform(goal_x-obs_buffer, 
+                          goal_x+obs_buffer, 
+                          num_obstacles)
+obs_y = np.random.uniform(goal_y-obs_buffer, goal_y+obs_buffer, num_obstacles)
 obs_z = np.random.uniform(-10, 100, num_obstacles)
-obs_radii = np.random.uniform(3, 10, num_obstacles)
+obs_radii = np.random.uniform(3, 3.1, num_obstacles)
+
+# #generate a line of obstacles
+# obs_x = np.arange(goal_x-num_obstacles/2, goal_x+num_obstacles/2, 1)
+# obs_y = np.ones(len(obs_x)) * goal_y
+# obs_z = np.ones(len(obs_x)) * goal_z
+# obs_radii = np.random.uniform(3, 3.1, len(obs_x))
+
 obstacles = np.array([obs_x, obs_y, obs_z, obs_radii]).T
 
 # Find the nearest n obstacles from the ego_position
@@ -202,6 +218,7 @@ print("Time taken for KNN:", end_time - start_time)
 #compute dot_product
 #abstract this into a function have inputs as ego_position, nearest_obstacles, current_heading, threshold
 inline_obstacles = []
+dot_product_threshold = 0.7
 start_time = time.time()
 for obs in nearest_obstacles:
     obs_2d = obs[:2]
@@ -210,7 +227,7 @@ for obs in nearest_obstacles:
     los_vector /= np.linalg.norm(los_vector)
     ego_unit_vector = np.array([np.cos(current_heading), np.sin(current_heading)])
     dot_product = np.dot(ego_unit_vector, los_vector)
-    if dot_product > 0.1:
+    if dot_product > dot_product_threshold:
         inline_obstacles.append((obs, dot_product))
         
 print("inline obstacles", inline_obstacles)
@@ -218,7 +235,7 @@ end_time = time.time()
 print("Time taken for dot product:", end_time - start_time)
 
 danger_zones = []
-buffer_zone = 10
+buffer_zone = 20
 for obs,dot in inline_obstacles:
     obs_2d = obs[:2]
     distance_to_obstacle = np.linalg.norm(obs_2d - current_position[:2])
@@ -231,13 +248,42 @@ print("algo time:", time.time() - algo_start)
 print("Danger Zones: ", danger_zones)
 dot_product = [d[1] for d in danger_zones]
 danger_zones = [d[0] for d in danger_zones]
+distances = [np.linalg.norm(d[:2] - current_position[:2]) for d in danger_zones]
+print("Distances:", distances)
+#pick the one with the closest distance and the max dot product
 #get the index of the max dot product
 max_dot_index = np.argmax(dot_product, axis=0)
 max_dot_obs = danger_zones[max_dot_index]
-print("Max Dot Obs:", max_dot_obs)
+min_distance_index = np.argmin(distances, axis=0)
+min_distance_obs = danger_zones[min_distance_index]
+print("closest distance:", min_distance_obs)
+
 #compute the drive by position
-drive_by_position = find_driveby_direction(max_dot_obs[:2], current_position[:2], current_heading,
-                                             max_dot_obs[-1], r_thesholdhold/2, True, nearest_obstacles)
+# drive_by_position = find_driveby_direction(max_dot_obs[:2], 
+#                                            current_position[:2], current_heading,
+#                                              max_dot_obs[-1], r_thesholdhold/2, True, nearest_obstacles)
+all_obstacles = [d[0] for d in inline_obstacles]
+drive_by_position = find_driveby_direction(goal_position=min_distance_obs[:2],
+                                           current_position=current_position[:2],
+                                           heading_rad=current_heading,
+                                           obs_radius=min_distance_obs[-1],
+                                           robot_radius=robot_radius,
+                                           consider_obstacles=True,
+                                           danger_zones=all_obstacles)
+
+#check if drive
+
+# if flag_inside:
+#     min_dot_obs = np.argmin(dot_product, axis=0)
+#     min_dot_obs = danger_zones[min_dot_obs]
+#     drive_by_position = find_driveby_direction(goal_position=min_dot_obs[:2],
+#                                            current_position=current_position[:2],
+#                                            heading_rad=current_heading,
+#                                            obs_radius=min_dot_obs[-1],
+#                                            robot_radius=robot_radius,
+#                                            consider_obstacles=True,
+#                                            danger_zones=danger_zones)
+
 print("Drive by position:", drive_by_position)
 
 # #plot obstacles and direction vectors
@@ -246,21 +292,30 @@ fig, ax = plt.subplots(1,1, figsize=(10,10))
 #draw circles
 for obs in obstacles:
     ax.add_patch(plt.Circle(obs[:2], obs[-1], fill=False, color='r'))
-        
+
+
 #plot ego position vector
 ax.quiver(current_position[0], current_position[1], 
           np.cos(current_heading), np.sin(current_heading), 
           color='b', scale=5)
 
-for obs in danger_zones:
-    ax.scatter(obs[0], obs[1], c='g', s=100)
+
+for i, obs in enumerate(danger_zones):
+    if i == 0:
+        ax.scatter(obs[0], obs[1], label='Danger Zones', c='g', s=100)
+    else:
+        ax.scatter(obs[0], obs[1], c='g', s=100)
+    
 #plot ego position vector
 ax.quiver(current_position[0], current_position[1], 
           np.cos(current_heading), np.sin(current_heading), 
           color='b', scale=5)
 #draw turn radius circle on the ego position offset by the heading
-ax.add_patch(plt.Circle(current_position[:2], r_thesholdhold, fill=False, color='g'))
+ax.add_patch(plt.Circle(current_position[:2], r_thesholdhold, fill=False, color='lightblue', label='Turn Radius'))
 
 #plot the drive by position
 ax.scatter(drive_by_position[0], drive_by_position[1], c='y', s=100)
+ax.scatter(goal_x, goal_y, c='r', s=100, label='Goal Position')
+
+ax.legend()
 plt.show()
