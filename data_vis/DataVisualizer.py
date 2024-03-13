@@ -67,6 +67,8 @@ class DataVisualizer():
         ax[3].plot(time_list, v_cmd, 'k', label='v_cmd')
         ax[4].plot(time_list, additional_row, 'm', label=label_name)
 
+        print("minimal distance: ", min(additional_row))
+        
         for ax in ax:
             ax.set_ylabel('Control')
             ax.set_xlabel('Time (s)')

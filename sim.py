@@ -85,13 +85,13 @@ state_constraints = {
     'airspeed_max': 10
 }
 
-init_states = np.array([0, #x 
-                        10, #y
+init_states = np.array([50, #x 
+                        1, #y
                         0, #z
                         0, #phi
                         0, #theta
                         np.deg2rad(0), #psi# 3  \
-                        5 #airspeed
+                        15 #airspeed
                         ]) 
 
 final_states = np.array([100, #x
@@ -100,7 +100,7 @@ final_states = np.array([100, #x
                          0,  #phi
                          0,  #theta
                          0,  #psi
-                         5 #airspeed
+                         15 #airspeed
                          ]) 
 
 init_controls = np.array([0, 
@@ -292,11 +292,11 @@ elif USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     }
     
     effector_config = {
-            'effector_range': 20, 
+            'effector_range': 10, 
             'effector_power': 1, 
             'effector_type': 'omnidirectional', 
             'effector_angle': np.deg2rad(90), #double the angle of the cone, this will be divided to two
-            'weight': 100, 
+            'weight': 10, 
             'radius_target': 1.0,
             'minor_radius': 1.0
             }

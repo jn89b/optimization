@@ -465,7 +465,6 @@ class PlaneOptControl(OptimalControlProblem):
             #dot product of the unit vectors
             dot_product = ca.dot(los_hat, ego_unit_vector)
             
-            
             # the idea of this is we want to be as perpendicular as possible to the target 
             # this will use the gaussian cuve where the peak is 1 if the dot product is 
             directional_cost = -self.gaussian_fn(dot_product)
