@@ -201,7 +201,7 @@ class OptimalControlProblem():
             nlp_prob, solver_opts)
         print('Solver initialized')
         
-    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:
+    def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray, args:dict) -> dict:
         """
         solve the optimal control problem
         Woudl be nice to wrap this into a solver

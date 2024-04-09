@@ -322,9 +322,7 @@ class PlaneOptControl(OptimalControlProblem):
             dtarget = ca.sqrt((dx)**2 + (dy)**2 + (dz)**2)
             #los_target = ca.vertcat(dx, dy)
             los_target = ca.atan2(dy, dx)
-            
-            #slow down cost  
-                            
+                                        
             #these exponential functions will be used to account for the distance and angle of the target
             #the closer we are to the target the more the distance factor will be close to 1
             error_dist_factor = ca.exp(-k_range*dtarget/self.Effector.effector_range)
@@ -346,7 +344,7 @@ class PlaneOptControl(OptimalControlProblem):
             ratio_theta = (error_theta/self.Effector.effector_angle)**2
             ratio_psi = (error_psi/self.Effector.effector_angle)**2
             
-            effector_dmg = (ratio_distance * (ratio_theta + ratio_psi))
+            effector_dmg = (ratio_distance + (ratio_theta + ratio_psi))
             #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
             quad_v_max = (v_cmd - v_max)**2
@@ -476,7 +474,7 @@ class PlaneOptControl(OptimalControlProblem):
             
             #the closer we are to the target the more the angle factor will be close to 1
             error_psi = ca.fabs(los_target - yaw) #watch out for wrapping angles right ehre
-            error_psi_factor = ca.exp(-k_azim*error_psi/self.Effector.effector_angle)
+
             
             #the closer we are to the target the more the angle factor will be close to 1
             los_theta = ca.atan2(dz, dx)
@@ -487,7 +485,7 @@ class PlaneOptControl(OptimalControlProblem):
             ratio_theta = (error_theta/self.Effector.effector_angle)**2
             ratio_phi = (error_phi/self.Effector.effector_angle)**2
             
-            effector_dmg = (ratio_distance + directional_cost * (ratio_theta*ratio_phi))
+            effector_dmg = (ratio_distance + (ratio_theta*ratio_phi*ca.fabs(dot_product)))
             #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
             quad_v_max = (v_cmd - v_max)**2

@@ -85,7 +85,7 @@ state_constraints = {
     'airspeed_max': 10
 }
 
-init_states = np.array([50, #x 
+init_states = np.array([0, #x 
                         1, #y
                         0, #z
                         0, #phi
@@ -129,7 +129,7 @@ seed = 2
 np.random.seed(seed)
 sim_iteration = 25
 idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 1
+N_obstacles = 0
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
