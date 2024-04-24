@@ -94,8 +94,8 @@ init_states = np.array([0, #x
                         15 #airspeed
                         ]) 
 
-final_states = np.array([100, #x
-                         250, #y
+final_states = np.array([200, #x
+                         200, #y
                          0, #zod
                          0,  #phi
                          0,  #theta
@@ -127,9 +127,9 @@ goal_color = 'green'
 #### SET YOUR CONFIGURATIONS HERE #######
 seed = 2
 np.random.seed(seed)
-sim_iteration = 25
-idx_next_step = 5 #index of the next step in the solution
-N_obstacles = 0
+sim_iteration = 100
+idx_next_step = 2 #index of the next step in the solution
+N_obstacles = 1
 
 
 title_video = 'Omni Directional Effector Obstacle Avoidance'
@@ -458,8 +458,6 @@ if USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
         ax.scatter(driveby_locations[i][0], driveby_locations[i][1], final_states[2], color='red', s=100, 
            label='Drive By')
         
-    
-
 if USE_OBSTACLE or USE_DIRECTIONAL_PEW_PEW_OBSTACLE or USE_OMNIDIRECTIONAL_PEW_PEW_OBSTACLE:
     #plot the obstacles
     for i in range(N_obstacles):

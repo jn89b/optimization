@@ -1,31 +1,34 @@
 import numpy as np
 
 import casadi as ca
-
 from matplotlib import pyplot as plt
-
+from os import system
 
 class Plane():
     def __init__(self, 
                  include_time:bool=False,
-                 dt_val:float=0.05) -> None:
+                 dt_val:float=0.05,
+                 compile_to_c:bool=False,
+                 use_compiled_fn:bool=False) -> None:
         self.include_time = include_time
         self.dt_val = dt_val
+        self.compile_to_c = compile_to_c
+        self.use_compiled_fn = use_compiled_fn
         self.define_states()
         self.define_controls() 
         
     def define_states(self):
         """define the states of your system"""
         #positions ofrom world
-        self.x_f = ca.SX.sym('x_f')
-        self.y_f = ca.SX.sym('y_f')
-        self.z_f = ca.SX.sym('z_f')
+        self.x_f = ca.MX.sym('x_f')
+        self.y_f = ca.MX.sym('y_f')
+        self.z_f = ca.MX.sym('z_f')
 
         #attitude
-        self.phi_f = ca.SX.sym('phi_f')
-        self.theta_f = ca.SX.sym('theta_f')
-        self.psi_f = ca.SX.sym('psi_f')
-        self.v = ca.SX.sym('t')
+        self.phi_f = ca.MX.sym('phi_f')
+        self.theta_f = ca.MX.sym('theta_f')
+        self.psi_f = ca.MX.sym('psi_f')
+        self.v = ca.MX.sym('t')
 
         if self.include_time:
             self.states = ca.vertcat(
@@ -51,10 +54,10 @@ class Plane():
 
     def define_controls(self):
         """controls for your system"""
-        self.u_phi = ca.SX.sym('u_phi')
-        self.u_theta = ca.SX.sym('u_theta')
-        self.u_psi = ca.SX.sym('u_psi')
-        self.v_cmd = ca.SX.sym('v_cmd')
+        self.u_phi = ca.MX.sym('u_phi')
+        self.u_theta = ca.MX.sym('u_theta')
+        self.u_psi = ca.MX.sym('u_psi')
+        self.v_cmd = ca.MX.sym('v_cmd')
 
         self.controls = ca.vertcat(
             self.u_phi,
@@ -104,10 +107,28 @@ class Plane():
             )
 
         #ODE function
-        self.function = ca.Function('f', 
+        name = 'dynamics'
+        self.function = ca.Function(name, 
             [self.states, self.controls], 
             [self.z_dot])
+
+        folder_dir = 'c_code'
+
+        #oname = folder_dir+'/'+name + '.so'
+        oname = name + '.so'
         
+        if self.compile_to_c:
+            function = self.function.generate()
+            print("function: ", function)
+            system('gcc -pipe -fPIC -shared -O3 ' +  function + ' -o ' + oname)
+            # self.f = ca.external(name, './'+oname)
+            print("Compiled to C")
+        
+        if self.use_compiled_fn:
+            print("Using compiled function")
+            self.c_code = ca.external(name, oname)
+            self.function = self.c_code
+            
         
     def rk45(self, x, u, dt, use_numeric:bool=True):
         """

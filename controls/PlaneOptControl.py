@@ -17,9 +17,11 @@ class PlaneOptControl(OptimalControlProblem):
                  pew_pew_params:dict=None,
                  use_time_constraints:bool=False,
                  time_constraint_val:float=None,
-                 use_time_intervals:bool=False) -> None:
+                 use_time_intervals:bool=False,
+                 compile_to_c:bool=False,
+                 use_c_code:bool=False) -> None:
         
-        super().__init__(mpc_params, casadi_model)
+        super().__init__(mpc_params, casadi_model, compile_to_c, use_c_code)
         self.control_constraints = control_constraints
         self.state_constraints = state_constraints
         # self.update_bound_constraints()
@@ -36,9 +38,9 @@ class PlaneOptControl(OptimalControlProblem):
         self.pew_pew_params = pew_pew_params
         if self.use_pew_pew:
             self.Effector = Effector(self.pew_pew_params, use_casadi=True)
-            if self.Effector.effector_type == 'omnidirectional':
-                #we need to add an additional parameter P to the optimization problem
-                self.driveby_location = ca.SX.sym('driveby_location', 3)
+            # if self.Effector.effector_type == 'omnidirectional':
+            #     #we need to add an additional parameter P to the optimization problem
+            #     self.driveby_location = ca.SX.sym('driveby_location', 3)
             
         #time constraint optimization
         #user sets some time, convert that to index and use that as a constraint
@@ -48,6 +50,9 @@ class PlaneOptControl(OptimalControlProblem):
         #this parameter allows you to use time intervals for the optimization problem
         self.use_time_intervals = use_time_intervals 
         self.is_initialized = False
+        
+        self.compile_to_c = compile_to_c
+        self.use_c_code = use_c_code
         
         self.gaussian_fn = self.gaussian_curve_function_casadi()
         
@@ -163,7 +168,7 @@ class PlaneOptControl(OptimalControlProblem):
             
         return cost
 
-    def     compute_obstacle_avoidance_cost(self) -> ca.SX:
+    def compute_obstacle_avoidance_cost(self) -> ca.SX:
         obs_avoid_weight = self.obs_params['weight']
         obs_x_vector = self.obs_params['x']
         obs_y_vector = self.obs_params['y']
@@ -308,10 +313,10 @@ class PlaneOptControl(OptimalControlProblem):
             yaw   = self.X[5, i]
             v_cmd = self.U[3, i]
 
-            if i == self.N-1:
-                v_cmd_next = self.U[3, i]
-            else:
-                v_cmd_next = self.U[3, i+1]
+            # if i == self.N-1:
+            #     v_cmd_next = self.U[3, i]
+            # else:
+            #     v_cmd_next = self.U[3, i+1]
 
             ###### DIRECTIONAL EFFECTOR COST FUNCTION MAXIMIZE TIME ON TARGET BY SLOWING DOWN APPROACH######
             #right now this is set up for the directional effector
@@ -352,6 +357,7 @@ class PlaneOptControl(OptimalControlProblem):
             quad_v_min = (v_cmd - v_min)**2
             vel_penalty = ca.if_else(error_dist_factor <= 0.1, 
                                      quad_v_max, quad_v_min)
+            # vel_penalty = 0
 
             #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
@@ -465,7 +471,7 @@ class PlaneOptControl(OptimalControlProblem):
             
             # the idea of this is we want to be as perpendicular as possible to the target 
             # this will use the gaussian cuve where the peak is 1 if the dot product is 
-            directional_cost = -self.gaussian_fn(dot_product)
+            # directional_cost = -self.gaussian_fn(dot_product)
                             
             #these exponential functions will be used to account for the distance and angle of the target
             #the closer we are to the target the more the distance factor will be close to 1
@@ -493,6 +499,7 @@ class PlaneOptControl(OptimalControlProblem):
             quad_v_min = (v_cmd - v_min)**2
             vel_penalty = ca.if_else(error_dist_factor <= 0.1, 
                                      quad_v_max, quad_v_min)
+            # vel_penalty = 0
 
             #all other controls except for the velocity
             controls_cost = ca.sumsqr(self.U[:3, i])
@@ -569,12 +576,12 @@ class PlaneOptControl(OptimalControlProblem):
             
             # the idea of this is we want to be as perpendicular as possible to the target 
             # this will use the gaussian cuve where the peak is 1 if the dot product is 
-            directional_cost = self.gaussian_fn(dot_product)
+            # directional_cost = self.gaussian_fn(dot_product)
                 
             #this value will be close to 1 the closer we are in range to the target            
             error_dist_factor = ca.exp(-dtarget/self.Effector.effector_range)
             
-            total_factor = error_dist_factor
+            # total_factor = error_dist_factor
             
             #this is time on target
             #this velocity penalty will be used to slow down the vehicle as it gets closer to the target
@@ -585,7 +592,7 @@ class PlaneOptControl(OptimalControlProblem):
                                      quad_v_max, quad_v_min)
 
             #all other controls except for the velocity
-            controls_cost = ca.sumsqr(self.U[:3, i])
+            # controls_cost = ca.sumsqr(self.U[:3, i])
             
             # effector_dmg = self.Effector.compute_power_density(dtarget, 
             #                                                    total_factor, 
@@ -597,11 +604,11 @@ class PlaneOptControl(OptimalControlProblem):
             # error_phi = ca.fabs(ca.atan2(dy, dx) - roll)
 
             ratio_distance = (dtarget/self.Effector.effector_range)**2
-            ratio_theta = (error_theta/self.Effector.effector_angle)**2
-            # ratio_phi = (error_phi/self.Effector.effector_angle)**2
+            ratio_theta = (error_theta/self.Effector.effector_angle)#**2
+            ratio_phi = (error_phi/self.Effector.effector_angle)#**2
             
-            effector_dmg = (ratio_distance * (ratio_theta))
-
+            # effector_dmg = (ratio_distance * (ratio_theta))
+            effector_dmg = (ratio_distance + (ratio_theta+ratio_phi)**2)
             effector_cost += effector_dmg + vel_penalty
                     
         total_effector_cost = self.pew_pew_params['weight'] * ca.sum2(effector_cost)
@@ -620,7 +627,6 @@ class PlaneOptControl(OptimalControlProblem):
                     
         if self.use_pew_pew:
             if self.Effector.effector_type == 'directional_3d':
-                # print('Using directional pew pew')
                 self.cost += self.compute_directional_pew_cost()
 
             elif self.Effector.effector_type == 'omnidirectional':
@@ -630,6 +636,7 @@ class PlaneOptControl(OptimalControlProblem):
         else:
             self.cost += self.compute_dynamics_cost()
             
+        # self.cost = ca
         return self.cost
 
     def solve(self, x0:np.ndarray, xF:np.ndarray, u0:np.ndarray) -> dict:
@@ -647,7 +654,6 @@ class PlaneOptControl(OptimalControlProblem):
         if self.use_obstacle_avoidance:
             # constraints lower bound added 
             if self.use_pew_pew and self.Effector.effector_type == 'directional_3d':
-                print('Using pew pew with obstacle avoidance')
                 num_obstacles = len(self.obs_params['x']) + 1
                 num_constraints = num_obstacles * self.N
                 lbg =  ca.DM.zeros((n_states*(self.N+1)+num_constraints, 1))
@@ -688,7 +694,8 @@ class PlaneOptControl(OptimalControlProblem):
             ca.reshape(X0, n_states*(self.N+1), 1),
             ca.reshape(U0, n_controls*self.N, 1)
         )
-
+        
+        # init_time = time.time()
         sol = self.solver(
             x0=args['x0'],
             lbx=args['lbx'],
@@ -697,6 +704,7 @@ class PlaneOptControl(OptimalControlProblem):
             ubg=args['ubg'],
             p=args['p']
         )
+        # print("Optimization time:", time.time()-init_time, "seconds")
         
         return sol
     
